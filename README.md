@@ -74,6 +74,12 @@ dotlink list ~/.claude
 dotlink status
 ```
 
+### Clear all
+
+```bash
+dotlink clear
+```
+
 ## Behavior
 
 - **Directory conflicts**: Allowed. Files inside are linked individually.

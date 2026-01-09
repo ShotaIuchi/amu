@@ -144,3 +144,42 @@ fn test_add_remove_workflow() {
 
     assert!(!target.join("test.txt").exists());
 }
+
+#[test]
+fn test_clear() {
+    let temp = TempDir::new().unwrap();
+    let config_path = temp.path().join("config.yaml");
+    let source = temp.path().join("source");
+    let target = temp.path().join("target");
+
+    fs::create_dir(&source).unwrap();
+    fs::create_dir(&target).unwrap();
+    fs::write(source.join("test.txt"), "hello").unwrap();
+
+    // Add first
+    dotlink_with_config(&config_path)
+        .arg("add")
+        .arg(&source)
+        .arg(&target)
+        .assert()
+        .success();
+
+    assert!(target.join("test.txt").exists());
+
+    // Clear
+    dotlink_with_config(&config_path)
+        .arg("clear")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Cleared all registered sources"));
+
+    // Symlink should be removed
+    assert!(!target.join("test.txt").exists());
+
+    // Config should be empty
+    dotlink_with_config(&config_path)
+        .arg("list")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("No targets registered"));
+}

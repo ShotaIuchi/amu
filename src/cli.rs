@@ -45,4 +45,7 @@ pub enum Commands {
 
     /// Show status of all registered links
     Status,
+
+    /// Remove all symlinks and clear configuration
+    Clear,
 }

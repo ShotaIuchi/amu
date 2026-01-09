@@ -29,6 +29,7 @@ fn run() -> Result<()> {
         Commands::Update { target } => cmd_update(target),
         Commands::List { target } => cmd_list(target),
         Commands::Status => cmd_status(),
+        Commands::Clear => cmd_clear(),
     }
 }
 
@@ -194,6 +195,31 @@ fn cmd_status() -> Result<()> {
         std::process::exit(1);
     }
 
+    Ok(())
+}
+
+fn cmd_clear() -> Result<()> {
+    let config = Config::load()?;
+
+    if config.targets.is_empty() {
+        println!("No targets registered.");
+        return Ok(());
+    }
+
+    for (target, sources) in &config.targets {
+        for source in sources {
+            if source.exists() && target.exists() {
+                if let Err(e) = stow::unstow(source, target) {
+                    eprintln!("Warning: Failed to unstow {} -> {}: {}", source.display(), target.display(), e);
+                }
+            }
+        }
+    }
+
+    let empty_config = Config::default();
+    empty_config.save()?;
+
+    println!("Cleared all registered sources.");
     Ok(())
 }
 
