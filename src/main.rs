@@ -26,9 +26,9 @@ fn run() -> Result<()> {
     match cli.command {
         Commands::Add { source, target } => cmd_add(source, target),
         Commands::Remove { source, target } => cmd_remove(source, target),
-        Commands::Update { target, source } => cmd_update(target, source),
+        Commands::Update { target, all, source } => cmd_update(target, all, source),
         Commands::Restore => cmd_restore(),
-        Commands::List { target, verbose } => cmd_list(target, verbose),
+        Commands::List { target, all, verbose } => cmd_list(target, all, verbose),
         Commands::Status => cmd_status(),
         Commands::Clear { target, all } => cmd_clear(target, all),
     }
@@ -78,7 +78,7 @@ fn cmd_remove(source: PathBuf, target: Option<PathBuf>) -> Result<()> {
     Ok(())
 }
 
-fn cmd_update(target: Option<PathBuf>, source: Option<PathBuf>) -> Result<()> {
+fn cmd_update(target: Option<PathBuf>, all: bool, source: Option<PathBuf>) -> Result<()> {
     let config = Config::load()?;
 
     // --source モード: 指定ソースを参照している全ターゲットを更新
@@ -108,13 +108,16 @@ fn cmd_update(target: Option<PathBuf>, source: Option<PathBuf>) -> Result<()> {
         return Ok(());
     }
 
-    // 通常モード: ターゲットを更新
-    let targets: Vec<PathBuf> = match target {
-        Some(t) => {
-            let normalized = resolve_target(Some(t))?;
-            vec![normalized]
+    // ターゲットを決定
+    let targets: Vec<PathBuf> = if all {
+        config.targets.keys().cloned().collect()
+    } else {
+        let t = resolve_target(target)?;
+        if !config.targets.contains_key(&t) {
+            println!("Target not registered: {}", abbreviate_path(&t));
+            return Ok(());
         }
-        None => config.targets.keys().cloned().collect(),
+        vec![t]
     };
 
     if targets.is_empty() {
@@ -139,27 +142,28 @@ fn cmd_update(target: Option<PathBuf>, source: Option<PathBuf>) -> Result<()> {
     Ok(())
 }
 
-fn cmd_list(target: Option<PathBuf>, verbose: bool) -> Result<()> {
+fn cmd_list(target: Option<PathBuf>, all: bool, verbose: bool) -> Result<()> {
     let config = Config::load()?;
 
-    let targets: Vec<&PathBuf> = match &target {
-        Some(t) => {
-            let normalized = resolve_target(Some(t.clone()))?;
-            config
-                .targets
-                .keys()
-                .filter(|k| **k == normalized)
-                .collect()
+    // ターゲットを決定
+    let target_list: Vec<PathBuf> = if all {
+        config.targets.keys().cloned().collect()
+    } else {
+        let t = resolve_target(target)?;
+        if config.targets.contains_key(&t) {
+            vec![t]
+        } else {
+            println!("Target not registered: {}", abbreviate_path(&t));
+            return Ok(());
         }
-        None => config.targets.keys().collect(),
     };
 
-    if targets.is_empty() {
+    if target_list.is_empty() {
         println!("No targets registered.");
         return Ok(());
     }
 
-    for target in targets {
+    for target in &target_list {
         println!("{}:", abbreviate_path(target));
         if let Some(sources) = config.get_sources(target) {
             if verbose {

@@ -51,11 +51,14 @@ amu remove ~/dotfiles/claude ~/.claude
 ### Update (reapply) links
 
 ```bash
+# Update current directory
+amu update
+
 # Update specific target
 amu update ~/.claude
 
 # Update all targets
-amu update
+amu update --all
 
 # Update all targets that reference a source
 cd ~/work-dotfiles/.claude
@@ -74,14 +77,17 @@ amu restore
 ### List registered sources
 
 ```bash
-# List all
+# List current directory
 amu list
 
 # List specific target
 amu list ~/.claude
 
+# List all targets
+amu list --all
+
 # Show actual symlinks
-amu list --verbose
+amu list ~/.claude --verbose
 ```
 
 ### Check status

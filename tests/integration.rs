@@ -34,12 +34,13 @@ fn test_version() {
 }
 
 #[test]
-fn test_list_empty() {
+fn test_list_all_empty() {
     let temp = TempDir::new().unwrap();
     let config_path = temp.path().join("config.yaml");
 
     amu_with_config(&config_path)
         .arg("list")
+        .arg("--all")
         .assert()
         .success()
         .stdout(predicate::str::contains("No targets registered"));
@@ -182,6 +183,7 @@ fn test_clear_target() {
     // Config should be empty
     amu_with_config(&config_path)
         .arg("list")
+        .arg("--all")
         .assert()
         .success()
         .stdout(predicate::str::contains("No targets registered"));
@@ -222,6 +224,7 @@ fn test_clear_all() {
     // Config should be empty
     amu_with_config(&config_path)
         .arg("list")
+        .arg("--all")
         .assert()
         .success()
         .stdout(predicate::str::contains("No targets registered"));
@@ -285,6 +288,7 @@ fn test_list_verbose() {
     // List with verbose - shows sources section
     amu_with_config(&config_path)
         .arg("list")
+        .arg(&target)
         .arg("--verbose")
         .assert()
         .success()

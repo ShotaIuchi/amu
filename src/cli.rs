@@ -31,10 +31,14 @@ pub enum Commands {
         target: Option<PathBuf>,
     },
 
-    /// Reapply all registered sources for a target
+    /// Reapply registered sources for a target
     Update {
-        /// Target directory to update (defaults to all targets)
+        /// Target directory to update (defaults to current directory)
         target: Option<PathBuf>,
+
+        /// Update all targets
+        #[arg(long)]
+        all: bool,
 
         /// Update all targets that reference this source
         #[arg(short, long)]
@@ -46,8 +50,12 @@ pub enum Commands {
 
     /// List registered sources
     List {
-        /// Target directory to list (defaults to all targets)
+        /// Target directory to list (defaults to current directory)
         target: Option<PathBuf>,
+
+        /// List all targets
+        #[arg(long)]
+        all: bool,
 
         /// Show actual symlinks
         #[arg(short, long)]
