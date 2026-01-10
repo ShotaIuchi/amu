@@ -4,6 +4,8 @@ version = "0.1.0"
 edition = "2021"
 description = "Merge multiple sources into one target with symlinks using stow"
 license = "MIT"
+repository = "https://github.com/ShotaIuchi/amu"
+homepage = "https://github.com/ShotaIuchi/amu"
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
@@ -17,3 +19,8 @@ thiserror = "1"
 tempfile = "3"
 assert_cmd = "2"
 predicates = "3"
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"
