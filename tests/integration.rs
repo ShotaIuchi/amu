@@ -47,12 +47,13 @@ fn test_list_all_empty() {
 }
 
 #[test]
-fn test_status_empty() {
+fn test_status_all_empty() {
     let temp = TempDir::new().unwrap();
     let config_path = temp.path().join("config.yaml");
 
     amu_with_config(&config_path)
         .arg("status")
+        .arg("--all")
         .assert()
         .success()
         .stdout(predicate::str::contains("No targets registered"));
@@ -255,9 +256,10 @@ fn test_restore() {
     fs::remove_file(target.join("test.txt")).unwrap();
     assert!(!target.join("test.txt").exists());
 
-    // Restore
+    // Restore specific target
     amu_with_config(&config_path)
         .arg("restore")
+        .arg(&target)
         .assert()
         .success()
         .stdout(predicate::str::contains("succeeded"));

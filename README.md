@@ -66,12 +66,19 @@ git pull
 amu update --source .
 ```
 
-### Restore all links
+### Restore links
 
-Restore all links from configuration (for new machine setup):
+Restore links from configuration (for new machine setup):
 
 ```bash
+# Restore current directory
 amu restore
+
+# Restore specific target
+amu restore ~/.claude
+
+# Restore all targets
+amu restore --all
 ```
 
 ### List registered sources
@@ -93,7 +100,14 @@ amu list ~/.claude --verbose
 ### Check status
 
 ```bash
+# Check current directory
 amu status
+
+# Check specific target
+amu status ~/.claude
+
+# Check all targets
+amu status --all
 ```
 
 ### Clear

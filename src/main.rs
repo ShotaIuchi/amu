@@ -27,9 +27,9 @@ fn run() -> Result<()> {
         Commands::Add { source, target } => cmd_add(source, target),
         Commands::Remove { source, target } => cmd_remove(source, target),
         Commands::Update { target, all, source } => cmd_update(target, all, source),
-        Commands::Restore => cmd_restore(),
+        Commands::Restore { target, all } => cmd_restore(target, all),
         Commands::List { target, all, verbose } => cmd_list(target, all, verbose),
-        Commands::Status => cmd_status(),
+        Commands::Status { target, all } => cmd_status(target, all),
         Commands::Clear { target, all } => cmd_clear(target, all),
     }
 }
@@ -222,52 +222,67 @@ fn collect_symlinks_recursive(base_target: &Path, sources: &[PathBuf], current: 
     }
 }
 
-fn cmd_status() -> Result<()> {
+fn cmd_status(target: Option<PathBuf>, all: bool) -> Result<()> {
     let config = Config::load()?;
 
-    if config.targets.is_empty() {
+    // ターゲットを決定
+    let target_list: Vec<PathBuf> = if all {
+        config.targets.keys().cloned().collect()
+    } else {
+        let t = resolve_target(target)?;
+        if config.targets.contains_key(&t) {
+            vec![t]
+        } else {
+            println!("Target not registered: {}", abbreviate_path(&t));
+            return Ok(());
+        }
+    };
+
+    if target_list.is_empty() {
         println!("No targets registered.");
         return Ok(());
     }
 
     let mut has_issues = false;
 
-    for (target, sources) in &config.targets {
-        println!("{}:", abbreviate_path(target));
+    for target in &target_list {
+        if let Some(sources) = config.get_sources(target) {
+            println!("{}:", abbreviate_path(target));
 
-        for source in sources {
-            let status = check_source_status(source, target);
-            match status {
-                SourceStatus::Ok => {
-                    println!("  \u{2713} {} (OK)", abbreviate_path(source));
-                }
-                SourceStatus::SourceNotFound => {
-                    println!("  \u{2717} {} (source not found)", abbreviate_path(source));
-                    has_issues = true;
-                }
-                SourceStatus::TargetNotFound => {
-                    println!("  \u{2717} {} (target not found)", abbreviate_path(source));
-                    has_issues = true;
-                }
-                SourceStatus::BrokenLinks(links) => {
-                    println!("  ! {} (broken links)", abbreviate_path(source));
-                    for link in links {
-                        println!("    - {}", link);
+            for source in sources {
+                let status = check_source_status(source, target);
+                match status {
+                    SourceStatus::Ok => {
+                        println!("  \u{2713} {} (OK)", abbreviate_path(source));
                     }
-                    has_issues = true;
-                }
-                SourceStatus::Conflicts(msg) => {
-                    println!("  ! {} (conflicts detected)", abbreviate_path(source));
-                    for line in msg.lines().take(5) {
-                        if !line.trim().is_empty() {
-                            println!("    {}", line.trim());
+                    SourceStatus::SourceNotFound => {
+                        println!("  \u{2717} {} (source not found)", abbreviate_path(source));
+                        has_issues = true;
+                    }
+                    SourceStatus::TargetNotFound => {
+                        println!("  \u{2717} {} (target not found)", abbreviate_path(source));
+                        has_issues = true;
+                    }
+                    SourceStatus::BrokenLinks(links) => {
+                        println!("  ! {} (broken links)", abbreviate_path(source));
+                        for link in links {
+                            println!("    - {}", link);
                         }
+                        has_issues = true;
                     }
-                    has_issues = true;
+                    SourceStatus::Conflicts(msg) => {
+                        println!("  ! {} (conflicts detected)", abbreviate_path(source));
+                        for line in msg.lines().take(5) {
+                            if !line.trim().is_empty() {
+                                println!("    {}", line.trim());
+                            }
+                        }
+                        has_issues = true;
+                    }
                 }
             }
+            println!();
         }
-        println!();
     }
 
     if has_issues {
@@ -320,10 +335,23 @@ fn cmd_clear(target: Option<PathBuf>, all: bool) -> Result<()> {
     Ok(())
 }
 
-fn cmd_restore() -> Result<()> {
+fn cmd_restore(target: Option<PathBuf>, all: bool) -> Result<()> {
     let config = Config::load()?;
 
-    if config.targets.is_empty() {
+    // ターゲットを決定
+    let target_list: Vec<PathBuf> = if all {
+        config.targets.keys().cloned().collect()
+    } else {
+        let t = resolve_target(target)?;
+        if config.targets.contains_key(&t) {
+            vec![t]
+        } else {
+            println!("Target not registered: {}", abbreviate_path(&t));
+            return Ok(());
+        }
+    };
+
+    if target_list.is_empty() {
         println!("No targets registered.");
         return Ok(());
     }
@@ -331,36 +359,38 @@ fn cmd_restore() -> Result<()> {
     let mut success = 0;
     let mut failed = 0;
 
-    for (target, sources) in &config.targets {
-        println!("{}:", abbreviate_path(target));
+    for target in &target_list {
+        if let Some(sources) = config.get_sources(target) {
+            println!("{}:", abbreviate_path(target));
 
-        // Create target directory if it doesn't exist
-        if !target.exists() {
-            if let Err(e) = std::fs::create_dir_all(target) {
-                eprintln!("  Failed to create target directory: {}", e);
-                failed += sources.len();
-                continue;
-            }
-        }
-
-        for source in sources {
-            if source.exists() {
-                match stow::stow(source, target) {
-                    Ok(()) => {
-                        println!("  \u{2713} {}", abbreviate_path(source));
-                        success += 1;
-                    }
-                    Err(e) => {
-                        println!("  \u{2717} {} ({})", abbreviate_path(source), e);
-                        failed += 1;
-                    }
+            // Create target directory if it doesn't exist
+            if !target.exists() {
+                if let Err(e) = std::fs::create_dir_all(target) {
+                    eprintln!("  Failed to create target directory: {}", e);
+                    failed += sources.len();
+                    continue;
                 }
-            } else {
-                println!("  \u{2717} {} (source not found)", abbreviate_path(source));
-                failed += 1;
             }
+
+            for source in sources {
+                if source.exists() {
+                    match stow::stow(source, target) {
+                        Ok(()) => {
+                            println!("  \u{2713} {}", abbreviate_path(source));
+                            success += 1;
+                        }
+                        Err(e) => {
+                            println!("  \u{2717} {} ({})", abbreviate_path(source), e);
+                            failed += 1;
+                        }
+                    }
+                } else {
+                    println!("  \u{2717} {} (source not found)", abbreviate_path(source));
+                    failed += 1;
+                }
+            }
+            println!();
         }
-        println!();
     }
 
     println!("Done: {} succeeded, {} failed", success, failed);

@@ -45,8 +45,15 @@ pub enum Commands {
         source: Option<PathBuf>,
     },
 
-    /// Restore all links from configuration (for new machine setup)
-    Restore,
+    /// Restore links from configuration (for new machine setup)
+    Restore {
+        /// Target directory to restore (defaults to current directory)
+        target: Option<PathBuf>,
+
+        /// Restore all targets
+        #[arg(long)]
+        all: bool,
+    },
 
     /// List registered sources
     List {
@@ -62,8 +69,15 @@ pub enum Commands {
         verbose: bool,
     },
 
-    /// Show status of all registered links
-    Status,
+    /// Show status of registered links
+    Status {
+        /// Target directory to check (defaults to current directory)
+        target: Option<PathBuf>,
+
+        /// Check all targets
+        #[arg(long)]
+        all: bool,
+    },
 
     /// Remove symlinks and clear configuration
     Clear {
