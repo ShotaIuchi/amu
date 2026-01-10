@@ -5,30 +5,32 @@ use assert_cmd::prelude::*;
 use predicates::prelude::*;
 use tempfile::TempDir;
 
-fn dotlink_with_config(config_path: &std::path::Path) -> Command {
-    let mut cmd = Command::cargo_bin("dotlink").unwrap();
-    cmd.env("DOTLINK_CONFIG", config_path);
+fn amu_cmd() -> Command {
+    Command::new(assert_cmd::cargo::cargo_bin!("amu"))
+}
+
+fn amu_with_config(config_path: &std::path::Path) -> Command {
+    let mut cmd = amu_cmd();
+    cmd.env("AMU_CONFIG", config_path);
     cmd
 }
 
 #[test]
 fn test_help() {
-    Command::cargo_bin("dotlink")
-        .unwrap()
+    amu_cmd()
         .arg("--help")
         .assert()
         .success()
-        .stdout(predicate::str::contains("Dotfiles linker using GNU stow"));
+        .stdout(predicate::str::contains("Merge multiple sources into one target"));
 }
 
 #[test]
 fn test_version() {
-    Command::cargo_bin("dotlink")
-        .unwrap()
+    amu_cmd()
         .arg("--version")
         .assert()
         .success()
-        .stdout(predicate::str::contains("dotlink"));
+        .stdout(predicate::str::contains("amu"));
 }
 
 #[test]
@@ -36,7 +38,7 @@ fn test_list_empty() {
     let temp = TempDir::new().unwrap();
     let config_path = temp.path().join("config.yaml");
 
-    dotlink_with_config(&config_path)
+    amu_with_config(&config_path)
         .arg("list")
         .assert()
         .success()
@@ -48,7 +50,7 @@ fn test_status_empty() {
     let temp = TempDir::new().unwrap();
     let config_path = temp.path().join("config.yaml");
 
-    dotlink_with_config(&config_path)
+    amu_with_config(&config_path)
         .arg("status")
         .assert()
         .success()
@@ -63,7 +65,7 @@ fn test_add_nonexistent_source() {
     let target = temp.path().join("target");
     fs::create_dir(&target).unwrap();
 
-    dotlink_with_config(&config_path)
+    amu_with_config(&config_path)
         .arg("add")
         .arg(&nonexistent)
         .arg(&target)
@@ -80,7 +82,7 @@ fn test_add_nonexistent_target() {
     let target = temp.path().join("nonexistent");
     fs::create_dir(&source).unwrap();
 
-    dotlink_with_config(&config_path)
+    amu_with_config(&config_path)
         .arg("add")
         .arg(&source)
         .arg(&target)
@@ -98,7 +100,7 @@ fn test_remove_not_registered() {
     fs::create_dir(&source).unwrap();
     fs::create_dir(&target).unwrap();
 
-    dotlink_with_config(&config_path)
+    amu_with_config(&config_path)
         .arg("remove")
         .arg(&source)
         .arg(&target)
@@ -119,7 +121,7 @@ fn test_add_remove_workflow() {
 
     fs::write(source.join("test.txt"), "hello").unwrap();
 
-    dotlink_with_config(&config_path)
+    amu_with_config(&config_path)
         .arg("add")
         .arg(&source)
         .arg(&target)
@@ -129,12 +131,12 @@ fn test_add_remove_workflow() {
 
     assert!(target.join("test.txt").exists());
 
-    dotlink_with_config(&config_path)
+    amu_with_config(&config_path)
         .arg("list")
         .assert()
         .success();
 
-    dotlink_with_config(&config_path)
+    amu_with_config(&config_path)
         .arg("remove")
         .arg(&source)
         .arg(&target)
@@ -157,7 +159,7 @@ fn test_clear() {
     fs::write(source.join("test.txt"), "hello").unwrap();
 
     // Add first
-    dotlink_with_config(&config_path)
+    amu_with_config(&config_path)
         .arg("add")
         .arg(&source)
         .arg(&target)
@@ -167,7 +169,7 @@ fn test_clear() {
     assert!(target.join("test.txt").exists());
 
     // Clear
-    dotlink_with_config(&config_path)
+    amu_with_config(&config_path)
         .arg("clear")
         .assert()
         .success()
@@ -177,7 +179,7 @@ fn test_clear() {
     assert!(!target.join("test.txt").exists());
 
     // Config should be empty
-    dotlink_with_config(&config_path)
+    amu_with_config(&config_path)
         .arg("list")
         .assert()
         .success()

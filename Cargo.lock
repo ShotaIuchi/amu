@@ -12,6 +12,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "amu"
+version = "0.1.0"
+dependencies = [
+ "assert_cmd",
+ "clap",
+ "dirs 5.0.1",
+ "predicates",
+ "serde",
+ "serde_yaml",
+ "shellexpand",
+ "tempfile",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "anstream"
 version = "0.6.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -197,21 +212,6 @@ dependencies = [
  "option-ext",
  "redox_users 0.5.2",
  "windows-sys 0.61.2",
-]
-
-[[package]]
-name = "dotlink"
-version = "0.1.0"
-dependencies = [
- "assert_cmd",
- "clap",
- "dirs 5.0.1",
- "predicates",
- "serde",
- "serde_yaml",
- "shellexpand",
- "tempfile",
- "thiserror 1.0.69",
 ]
 
 [[package]]

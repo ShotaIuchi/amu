@@ -1,10 +1,10 @@
-# dotlink
+# amu
 
-Dotfiles linker using GNU stow.
+Merge multiple sources into one target with symlinks using stow.
 
 ## Overview
 
-dotlink manages symlinks for dotfiles by merging multiple source directories into a single target directory. It uses GNU stow internally.
+amu manages symlinks for dotfiles by merging multiple source directories into a single target directory. It uses GNU stow internally.
 
 ## Installation
 
@@ -35,49 +35,49 @@ cargo install --path .
 
 ```bash
 # Link ~/dotfiles/claude to ~/.claude
-dotlink add ~/dotfiles/claude ~/.claude
+amu add ~/dotfiles/claude ~/.claude
 
 # Or cd to target first
 cd ~/.claude
-dotlink add ~/dotfiles/claude
+amu add ~/dotfiles/claude
 ```
 
 ### Remove a source directory
 
 ```bash
-dotlink remove ~/dotfiles/claude ~/.claude
+amu remove ~/dotfiles/claude ~/.claude
 ```
 
 ### Update (reapply) links
 
 ```bash
 # Update specific target
-dotlink update ~/.claude
+amu update ~/.claude
 
 # Update all targets
-dotlink update
+amu update
 ```
 
 ### List registered sources
 
 ```bash
 # List all
-dotlink list
+amu list
 
 # List specific target
-dotlink list ~/.claude
+amu list ~/.claude
 ```
 
 ### Check status
 
 ```bash
-dotlink status
+amu status
 ```
 
 ### Clear all
 
 ```bash
-dotlink clear
+amu clear
 ```
 
 ## Behavior
@@ -87,7 +87,7 @@ dotlink clear
 
 ## Configuration
 
-Configuration is stored in `~/.config/dotlink/config.yaml`:
+Configuration is stored in `~/.config/amu/config.yaml`:
 
 ```yaml
 targets:
@@ -102,7 +102,7 @@ targets:
 
 | Variable | Description |
 |----------|-------------|
-| `DOTLINK_CONFIG` | Override config file path |
+| `AMU_CONFIG` | Override config file path |
 
 ## License
 

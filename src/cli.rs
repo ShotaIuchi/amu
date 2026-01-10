@@ -3,8 +3,8 @@ use std::path::PathBuf;
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
-#[command(name = "dotlink")]
-#[command(about = "Dotfiles linker using GNU stow", long_about = None)]
+#[command(name = "amu")]
+#[command(about = "Merge multiple sources into one target with symlinks using stow", long_about = None)]
 #[command(version)]
 pub struct Cli {
     #[command(subcommand)]

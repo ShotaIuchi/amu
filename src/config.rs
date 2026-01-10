@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::{DotlinkError, Result};
 
-const CONFIG_DIR: &str = "dotlink";
+const CONFIG_DIR: &str = "amu";
 const CONFIG_FILE: &str = "config.yaml";
 
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -78,7 +78,7 @@ impl Config {
     }
 
     fn config_path() -> Result<PathBuf> {
-        if let Ok(path) = std::env::var("DOTLINK_CONFIG") {
+        if let Ok(path) = std::env::var("AMU_CONFIG") {
             return Ok(PathBuf::from(path));
         }
         let home = dirs::home_dir()
