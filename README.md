@@ -56,6 +56,19 @@ amu update ~/.claude
 
 # Update all targets
 amu update
+
+# Update all targets that reference a source
+cd ~/work-dotfiles/.claude
+git pull
+amu update --source .
+```
+
+### Restore all links
+
+Restore all links from configuration (for new machine setup):
+
+```bash
+amu restore
 ```
 
 ### List registered sources
@@ -66,6 +79,9 @@ amu list
 
 # List specific target
 amu list ~/.claude
+
+# Show actual symlinks
+amu list --verbose
 ```
 
 ### Check status

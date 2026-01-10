@@ -35,12 +35,23 @@ pub enum Commands {
     Update {
         /// Target directory to update (defaults to all targets)
         target: Option<PathBuf>,
+
+        /// Update all targets that reference this source
+        #[arg(short, long)]
+        source: Option<PathBuf>,
     },
+
+    /// Restore all links from configuration (for new machine setup)
+    Restore,
 
     /// List registered sources
     List {
         /// Target directory to list (defaults to all targets)
         target: Option<PathBuf>,
+
+        /// Show actual symlinks
+        #[arg(short, long)]
+        verbose: bool,
     },
 
     /// Show status of all registered links

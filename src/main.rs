@@ -26,8 +26,9 @@ fn run() -> Result<()> {
     match cli.command {
         Commands::Add { source, target } => cmd_add(source, target),
         Commands::Remove { source, target } => cmd_remove(source, target),
-        Commands::Update { target } => cmd_update(target),
-        Commands::List { target } => cmd_list(target),
+        Commands::Update { target, source } => cmd_update(target, source),
+        Commands::Restore => cmd_restore(),
+        Commands::List { target, verbose } => cmd_list(target, verbose),
         Commands::Status => cmd_status(),
         Commands::Clear => cmd_clear(),
     }
@@ -77,9 +78,37 @@ fn cmd_remove(source: PathBuf, target: Option<PathBuf>) -> Result<()> {
     Ok(())
 }
 
-fn cmd_update(target: Option<PathBuf>) -> Result<()> {
+fn cmd_update(target: Option<PathBuf>, source: Option<PathBuf>) -> Result<()> {
     let config = Config::load()?;
 
+    // --source モード: 指定ソースを参照している全ターゲットを更新
+    if let Some(src) = source {
+        let src = normalize_path(&src)?;
+        let mut updated = 0;
+
+        println!("Updating targets that reference {}:", abbreviate_path(&src));
+
+        for (target, sources) in &config.targets {
+            if sources.contains(&src) {
+                if src.exists() && target.exists() {
+                    stow::restow(&src, target)?;
+                    println!("  \u{2713} {}", abbreviate_path(target));
+                    updated += 1;
+                } else if !target.exists() {
+                    println!("  \u{2717} {} (target not found)", abbreviate_path(target));
+                }
+            }
+        }
+
+        if updated == 0 {
+            println!("No targets found for this source.");
+        } else {
+            println!("\nDone: {} target(s) updated", updated);
+        }
+        return Ok(());
+    }
+
+    // 通常モード: ターゲットを更新
     let targets: Vec<PathBuf> = match target {
         Some(t) => {
             let normalized = resolve_target(Some(t))?;
@@ -95,13 +124,13 @@ fn cmd_update(target: Option<PathBuf>) -> Result<()> {
 
     for target in targets {
         if let Some(sources) = config.get_sources(&target) {
-            println!("Updating {}:", target.display());
+            println!("Updating {}:", abbreviate_path(&target));
             for source in sources {
                 if source.exists() {
                     stow::restow(source, &target)?;
-                    println!("  Restowed: {}", source.display());
+                    println!("  Restowed: {}", abbreviate_path(source));
                 } else {
-                    println!("  Skipped (not found): {}", source.display());
+                    println!("  Skipped (not found): {}", abbreviate_path(source));
                 }
             }
         }
@@ -110,7 +139,7 @@ fn cmd_update(target: Option<PathBuf>) -> Result<()> {
     Ok(())
 }
 
-fn cmd_list(target: Option<PathBuf>) -> Result<()> {
+fn cmd_list(target: Option<PathBuf>, verbose: bool) -> Result<()> {
     let config = Config::load()?;
 
     let targets: Vec<&PathBuf> = match &target {
@@ -133,14 +162,60 @@ fn cmd_list(target: Option<PathBuf>) -> Result<()> {
     for target in targets {
         println!("{}:", abbreviate_path(target));
         if let Some(sources) = config.get_sources(target) {
-            for source in sources {
-                println!("  - {}", abbreviate_path(source));
+            if verbose {
+                println!("  sources:");
+                for source in sources {
+                    println!("    - {}", abbreviate_path(source));
+                }
+                let links = collect_symlinks(target, sources);
+                if !links.is_empty() {
+                    println!("  links:");
+                    for (link_path, link_target) in links {
+                        println!("    {} -> {}", abbreviate_path(&link_path), abbreviate_path(&link_target));
+                    }
+                }
+            } else {
+                for source in sources {
+                    println!("  - {}", abbreviate_path(source));
+                }
             }
         }
         println!();
     }
 
     Ok(())
+}
+
+fn collect_symlinks(target: &Path, sources: &[PathBuf]) -> Vec<(PathBuf, PathBuf)> {
+    let mut links = Vec::new();
+    collect_symlinks_recursive(target, sources, target, &mut links);
+    links
+}
+
+fn collect_symlinks_recursive(base_target: &Path, sources: &[PathBuf], current: &Path, links: &mut Vec<(PathBuf, PathBuf)>) {
+    if let Ok(entries) = std::fs::read_dir(current) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_symlink() {
+                if let Ok(link_target) = std::fs::read_link(&path) {
+                    // Check if this symlink points to one of our sources
+                    let abs_target = if link_target.is_absolute() {
+                        link_target.clone()
+                    } else {
+                        path.parent().unwrap_or(current).join(&link_target)
+                    };
+                    for source in sources {
+                        if abs_target.starts_with(source) {
+                            links.push((path.clone(), abs_target));
+                            break;
+                        }
+                    }
+                }
+            } else if path.is_dir() {
+                collect_symlinks_recursive(base_target, sources, &path, links);
+            }
+        }
+    }
 }
 
 fn cmd_status() -> Result<()> {
@@ -220,6 +295,58 @@ fn cmd_clear() -> Result<()> {
     empty_config.save()?;
 
     println!("Cleared all registered sources.");
+    Ok(())
+}
+
+fn cmd_restore() -> Result<()> {
+    let config = Config::load()?;
+
+    if config.targets.is_empty() {
+        println!("No targets registered.");
+        return Ok(());
+    }
+
+    let mut success = 0;
+    let mut failed = 0;
+
+    for (target, sources) in &config.targets {
+        println!("{}:", abbreviate_path(target));
+
+        // Create target directory if it doesn't exist
+        if !target.exists() {
+            if let Err(e) = std::fs::create_dir_all(target) {
+                eprintln!("  Failed to create target directory: {}", e);
+                failed += sources.len();
+                continue;
+            }
+        }
+
+        for source in sources {
+            if source.exists() {
+                match stow::stow(source, target) {
+                    Ok(()) => {
+                        println!("  \u{2713} {}", abbreviate_path(source));
+                        success += 1;
+                    }
+                    Err(e) => {
+                        println!("  \u{2717} {} ({})", abbreviate_path(source), e);
+                        failed += 1;
+                    }
+                }
+            } else {
+                println!("  \u{2717} {} (source not found)", abbreviate_path(source));
+                failed += 1;
+            }
+        }
+        println!();
+    }
+
+    println!("Done: {} succeeded, {} failed", success, failed);
+
+    if failed > 0 {
+        std::process::exit(1);
+    }
+
     Ok(())
 }
 
