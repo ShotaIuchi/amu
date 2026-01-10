@@ -30,7 +30,7 @@ fn run() -> Result<()> {
         Commands::Restore => cmd_restore(),
         Commands::List { target, verbose } => cmd_list(target, verbose),
         Commands::Status => cmd_status(),
-        Commands::Clear => cmd_clear(),
+        Commands::Clear { target, all } => cmd_clear(target, all),
     }
 }
 
@@ -273,28 +273,46 @@ fn cmd_status() -> Result<()> {
     Ok(())
 }
 
-fn cmd_clear() -> Result<()> {
-    let config = Config::load()?;
+fn cmd_clear(target: Option<PathBuf>, all: bool) -> Result<()> {
+    let mut config = Config::load()?;
 
     if config.targets.is_empty() {
         println!("No targets registered.");
         return Ok(());
     }
 
-    for (target, sources) in &config.targets {
-        for source in sources {
-            if source.exists() && target.exists() {
-                if let Err(e) = stow::unstow(source, target) {
-                    eprintln!("Warning: Failed to unstow {} -> {}: {}", source.display(), target.display(), e);
+    // Determine which targets to clear
+    let targets_to_clear: Vec<PathBuf> = if all {
+        config.targets.keys().cloned().collect()
+    } else {
+        let t = resolve_target(target)?;
+        if !config.targets.contains_key(&t) {
+            println!("Target not registered: {}", abbreviate_path(&t));
+            return Ok(());
+        }
+        vec![t]
+    };
+
+    for target in &targets_to_clear {
+        if let Some(sources) = config.targets.get(target) {
+            for source in sources {
+                if source.exists() && target.exists() {
+                    if let Err(e) = stow::unstow(source, target) {
+                        eprintln!("Warning: Failed to unstow {} -> {}: {}", source.display(), target.display(), e);
+                    }
                 }
             }
         }
+        config.targets.remove(target);
     }
 
-    let empty_config = Config::default();
-    empty_config.save()?;
+    config.save()?;
 
-    println!("Cleared all registered sources.");
+    if all {
+        println!("Cleared all registered sources.");
+    } else {
+        println!("Cleared: {}", abbreviate_path(&targets_to_clear[0]));
+    }
     Ok(())
 }
 

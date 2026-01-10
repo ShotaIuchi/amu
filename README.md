@@ -90,10 +90,17 @@ amu list --verbose
 amu status
 ```
 
-### Clear all
+### Clear
 
 ```bash
+# Clear current directory
 amu clear
+
+# Clear specific target
+amu clear ~/.claude
+
+# Clear all targets
+amu clear --all
 ```
 
 ## Behavior

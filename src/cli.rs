@@ -57,6 +57,13 @@ pub enum Commands {
     /// Show status of all registered links
     Status,
 
-    /// Remove all symlinks and clear configuration
-    Clear,
+    /// Remove symlinks and clear configuration
+    Clear {
+        /// Target directory to clear (defaults to current directory)
+        target: Option<PathBuf>,
+
+        /// Clear all targets
+        #[arg(long)]
+        all: bool,
+    },
 }

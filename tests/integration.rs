@@ -148,7 +148,7 @@ fn test_add_remove_workflow() {
 }
 
 #[test]
-fn test_clear() {
+fn test_clear_target() {
     let temp = TempDir::new().unwrap();
     let config_path = temp.path().join("config.yaml");
     let source = temp.path().join("source");
@@ -168,9 +168,50 @@ fn test_clear() {
 
     assert!(target.join("test.txt").exists());
 
-    // Clear
+    // Clear specific target
     amu_with_config(&config_path)
         .arg("clear")
+        .arg(&target)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Cleared:"));
+
+    // Symlink should be removed
+    assert!(!target.join("test.txt").exists());
+
+    // Config should be empty
+    amu_with_config(&config_path)
+        .arg("list")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("No targets registered"));
+}
+
+#[test]
+fn test_clear_all() {
+    let temp = TempDir::new().unwrap();
+    let config_path = temp.path().join("config.yaml");
+    let source = temp.path().join("source");
+    let target = temp.path().join("target");
+
+    fs::create_dir(&source).unwrap();
+    fs::create_dir(&target).unwrap();
+    fs::write(source.join("test.txt"), "hello").unwrap();
+
+    // Add first
+    amu_with_config(&config_path)
+        .arg("add")
+        .arg(&source)
+        .arg(&target)
+        .assert()
+        .success();
+
+    assert!(target.join("test.txt").exists());
+
+    // Clear all
+    amu_with_config(&config_path)
+        .arg("clear")
+        .arg("--all")
         .assert()
         .success()
         .stdout(predicate::str::contains("Cleared all registered sources"));
