@@ -20,6 +20,10 @@ pub enum Commands {
 
         /// Target directory to link to (defaults to current directory)
         target: Option<PathBuf>,
+
+        /// Show what would be done without making changes
+        #[arg(short = 'n', long)]
+        dry_run: bool,
     },
 
     /// Remove symlinks and unregister a source directory
@@ -29,6 +33,10 @@ pub enum Commands {
 
         /// Target directory (defaults to current directory)
         target: Option<PathBuf>,
+
+        /// Show what would be done without making changes
+        #[arg(short = 'n', long)]
+        dry_run: bool,
     },
 
     /// Reapply registered sources for a target
@@ -43,6 +51,10 @@ pub enum Commands {
         /// Update all targets that reference this source
         #[arg(short, long)]
         source: Option<PathBuf>,
+
+        /// Show what would be done without making changes
+        #[arg(short = 'n', long)]
+        dry_run: bool,
     },
 
     /// Restore links from configuration (for new machine setup)
@@ -53,6 +65,10 @@ pub enum Commands {
         /// Restore all targets
         #[arg(long)]
         all: bool,
+
+        /// Show what would be done without making changes
+        #[arg(short = 'n', long)]
+        dry_run: bool,
     },
 
     /// List registered sources
@@ -87,5 +103,9 @@ pub enum Commands {
         /// Clear all targets
         #[arg(long)]
         all: bool,
+
+        /// Show what would be done without making changes
+        #[arg(short = 'n', long)]
+        dry_run: bool,
     },
 }

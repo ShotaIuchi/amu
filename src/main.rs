@@ -24,17 +24,17 @@ fn run() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Add { source, target } => cmd_add(source, target),
-        Commands::Remove { source, target } => cmd_remove(source, target),
-        Commands::Update { target, all, source } => cmd_update(target, all, source),
-        Commands::Restore { target, all } => cmd_restore(target, all),
+        Commands::Add { source, target, dry_run } => cmd_add(source, target, dry_run),
+        Commands::Remove { source, target, dry_run } => cmd_remove(source, target, dry_run),
+        Commands::Update { target, all, source, dry_run } => cmd_update(target, all, source, dry_run),
+        Commands::Restore { target, all, dry_run } => cmd_restore(target, all, dry_run),
         Commands::List { target, all, verbose } => cmd_list(target, all, verbose),
         Commands::Status { target, all } => cmd_status(target, all),
-        Commands::Clear { target, all } => cmd_clear(target, all),
+        Commands::Clear { target, all, dry_run } => cmd_clear(target, all, dry_run),
     }
 }
 
-fn cmd_add(source: PathBuf, target: Option<PathBuf>) -> Result<()> {
+fn cmd_add(source: PathBuf, target: Option<PathBuf>, dry_run: bool) -> Result<()> {
     let source = normalize_path(&source)?;
     let target = resolve_target(target)?;
 
@@ -43,6 +43,21 @@ fn cmd_add(source: PathBuf, target: Option<PathBuf>) -> Result<()> {
     }
     if !target.is_dir() {
         return Err(DotlinkError::TargetNotFound(target));
+    }
+
+    // dry-run モード: プレビューのみ
+    if dry_run {
+        println!("[dry-run] add {} -> {}", abbreviate_path(&source), abbreviate_path(&target));
+        let output = stow::dry_run(&source, &target)?;
+        let links = stow::parse_dry_run_output(&output);
+        if links.is_empty() {
+            println!("  No changes would be made.");
+        } else {
+            for link in links {
+                println!("  {}", link);
+            }
+        }
+        return Ok(());
     }
 
     let mut config = Config::load()?;
@@ -55,7 +70,7 @@ fn cmd_add(source: PathBuf, target: Option<PathBuf>) -> Result<()> {
     Ok(())
 }
 
-fn cmd_remove(source: PathBuf, target: Option<PathBuf>) -> Result<()> {
+fn cmd_remove(source: PathBuf, target: Option<PathBuf>, dry_run: bool) -> Result<()> {
     let source = config::expand_path(&source);
     let target = resolve_target(target)?;
 
@@ -64,6 +79,25 @@ fn cmd_remove(source: PathBuf, target: Option<PathBuf>) -> Result<()> {
     } else {
         source
     };
+
+    // dry-run モード: プレビューのみ
+    if dry_run {
+        println!("[dry-run] remove {} -> {}", abbreviate_path(&source), abbreviate_path(&target));
+        if source.exists() {
+            let output = stow::dry_run_unstow(&source, &target)?;
+            let links = stow::parse_dry_run_output(&output);
+            if links.is_empty() {
+                println!("  No changes would be made.");
+            } else {
+                for link in links {
+                    println!("  {}", link);
+                }
+            }
+        } else {
+            println!("  Source not found, would only remove from config.");
+        }
+        return Ok(());
+    }
 
     let mut config = Config::load()?;
 
@@ -78,7 +112,7 @@ fn cmd_remove(source: PathBuf, target: Option<PathBuf>) -> Result<()> {
     Ok(())
 }
 
-fn cmd_update(target: Option<PathBuf>, all: bool, source: Option<PathBuf>) -> Result<()> {
+fn cmd_update(target: Option<PathBuf>, all: bool, source: Option<PathBuf>, dry_run: bool) -> Result<()> {
     let config = Config::load()?;
 
     // --source モード: 指定ソースを参照している全ターゲットを更新
@@ -86,13 +120,20 @@ fn cmd_update(target: Option<PathBuf>, all: bool, source: Option<PathBuf>) -> Re
         let src = normalize_path(&src)?;
         let mut updated = 0;
 
-        println!("Updating targets that reference {}:", abbreviate_path(&src));
+        let prefix = if dry_run { "[dry-run] " } else { "" };
+        println!("{}Updating targets that reference {}:", prefix, abbreviate_path(&src));
 
         for (target, sources) in &config.targets {
             if sources.contains(&src) {
                 if src.exists() && target.exists() {
-                    stow::restow(&src, target)?;
-                    println!("  \u{2713} {}", abbreviate_path(target));
+                    if dry_run {
+                        let output = stow::dry_run_restow(&src, target)?;
+                        let links = stow::parse_dry_run_output(&output);
+                        println!("  {} (would restow {} links)", abbreviate_path(target), links.len());
+                    } else {
+                        stow::restow(&src, target)?;
+                        println!("  \u{2713} {}", abbreviate_path(target));
+                    }
                     updated += 1;
                 } else if !target.exists() {
                     println!("  \u{2717} {} (target not found)", abbreviate_path(target));
@@ -103,7 +144,7 @@ fn cmd_update(target: Option<PathBuf>, all: bool, source: Option<PathBuf>) -> Re
         if updated == 0 {
             println!("No targets found for this source.");
         } else {
-            println!("\nDone: {} target(s) updated", updated);
+            println!("\nDone: {} target(s) {}", updated, if dry_run { "would be updated" } else { "updated" });
         }
         return Ok(());
     }
@@ -125,13 +166,24 @@ fn cmd_update(target: Option<PathBuf>, all: bool, source: Option<PathBuf>) -> Re
         return Ok(());
     }
 
+    let prefix = if dry_run { "[dry-run] " } else { "" };
     for target in targets {
         if let Some(sources) = config.get_sources(&target) {
-            println!("Updating {}:", abbreviate_path(&target));
+            println!("{}Updating {}:", prefix, abbreviate_path(&target));
             for source in sources {
                 if source.exists() {
-                    stow::restow(source, &target)?;
-                    println!("  Restowed: {}", abbreviate_path(source));
+                    if dry_run {
+                        let output = stow::dry_run_restow(source, &target)?;
+                        let links = stow::parse_dry_run_output(&output);
+                        if links.is_empty() {
+                            println!("  Would restow: {} (no changes)", abbreviate_path(source));
+                        } else {
+                            println!("  Would restow: {} ({} links)", abbreviate_path(source), links.len());
+                        }
+                    } else {
+                        stow::restow(source, &target)?;
+                        println!("  Restowed: {}", abbreviate_path(source));
+                    }
                 } else {
                     println!("  Skipped (not found): {}", abbreviate_path(source));
                 }
@@ -292,7 +344,7 @@ fn cmd_status(target: Option<PathBuf>, all: bool) -> Result<()> {
     Ok(())
 }
 
-fn cmd_clear(target: Option<PathBuf>, all: bool) -> Result<()> {
+fn cmd_clear(target: Option<PathBuf>, all: bool, dry_run: bool) -> Result<()> {
     let mut config = Config::load()?;
 
     if config.targets.is_empty() {
@@ -311,6 +363,24 @@ fn cmd_clear(target: Option<PathBuf>, all: bool) -> Result<()> {
         }
         vec![t]
     };
+
+    // dry-run モード: プレビューのみ
+    if dry_run {
+        println!("[dry-run] Would clear:");
+        for target in &targets_to_clear {
+            println!("  {}", abbreviate_path(target));
+            if let Some(sources) = config.targets.get(target) {
+                for source in sources {
+                    if source.exists() && target.exists() {
+                        let output = stow::dry_run_unstow(source, target)?;
+                        let links = stow::parse_dry_run_output(&output);
+                        println!("    {} ({} links)", abbreviate_path(source), links.len());
+                    }
+                }
+            }
+        }
+        return Ok(());
+    }
 
     for target in &targets_to_clear {
         if let Some(sources) = config.targets.get(target) {
@@ -335,7 +405,7 @@ fn cmd_clear(target: Option<PathBuf>, all: bool) -> Result<()> {
     Ok(())
 }
 
-fn cmd_restore(target: Option<PathBuf>, all: bool) -> Result<()> {
+fn cmd_restore(target: Option<PathBuf>, all: bool, dry_run: bool) -> Result<()> {
     let config = Config::load()?;
 
     // ターゲットを決定
@@ -353,6 +423,31 @@ fn cmd_restore(target: Option<PathBuf>, all: bool) -> Result<()> {
 
     if target_list.is_empty() {
         println!("No targets registered.");
+        return Ok(());
+    }
+
+    // dry-run モード: プレビューのみ
+    if dry_run {
+        println!("[dry-run] Would restore:");
+        for target in &target_list {
+            println!("  {}:", abbreviate_path(target));
+            if let Some(sources) = config.get_sources(target) {
+                for source in sources {
+                    if source.exists() {
+                        // ターゲットが存在しない場合も表示
+                        if target.exists() {
+                            let output = stow::dry_run(source, target)?;
+                            let links = stow::parse_dry_run_output(&output);
+                            println!("    {} ({} links)", abbreviate_path(source), links.len());
+                        } else {
+                            println!("    {} (target would be created)", abbreviate_path(source));
+                        }
+                    } else {
+                        println!("    {} (source not found)", abbreviate_path(source));
+                    }
+                }
+            }
+        }
         return Ok(());
     }
 

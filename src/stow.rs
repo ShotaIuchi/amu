@@ -29,22 +29,45 @@ pub fn restow(source: &Path, target: &Path) -> Result<()> {
 }
 
 pub fn dry_run(source: &Path, target: &Path) -> Result<String> {
+    dry_run_with_args(&[], source, target)
+}
+
+pub fn dry_run_unstow(source: &Path, target: &Path) -> Result<String> {
+    dry_run_with_args(&["-D"], source, target)
+}
+
+pub fn dry_run_restow(source: &Path, target: &Path) -> Result<String> {
+    dry_run_with_args(&["-R"], source, target)
+}
+
+fn dry_run_with_args(extra_args: &[&str], source: &Path, target: &Path) -> Result<String> {
     let (parent, dirname) = split_source_path(source)?;
 
-    let output = Command::new("stow")
-        .arg("-n")
-        .arg("-v")
-        .arg("--no-folding")
-        .arg("-t")
-        .arg(target)
-        .arg("-d")
-        .arg(&parent)
-        .arg(&dirname)
-        .output()
-        .map_err(|e| DotlinkError::StowError(e.to_string()))?;
+    let mut cmd = Command::new("stow");
+    cmd.arg("-n").arg("-v").arg("--no-folding");
+    for arg in extra_args {
+        cmd.arg(arg);
+    }
+    cmd.arg("-t").arg(target);
+    cmd.arg("-d").arg(&parent);
+    cmd.arg(&dirname);
+
+    let output = cmd.output().map_err(|e| DotlinkError::StowError(e.to_string()))?;
 
     let stderr = String::from_utf8_lossy(&output.stderr).to_string();
     Ok(stderr)
+}
+
+/*
+ * stow の dry-run 出力からリンク操作を抽出する
+ * 出力例: "LINK: .config/nvim/init.lua => ../../../dotfiles/nvim/init.lua"
+ */
+pub fn parse_dry_run_output(output: &str) -> Vec<String> {
+    output
+        .lines()
+        .filter(|line| line.contains("LINK:") || line.contains("UNLINK:"))
+        .map(|line| line.trim().to_string())
+        .collect()
 }
 
 fn run_stow(extra_args: &[&str], source: &Path, target: &Path) -> Result<()> {

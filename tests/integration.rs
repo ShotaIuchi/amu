@@ -879,3 +879,191 @@ fn test_clear_not_registered_target() {
                 .or(predicate::str::contains("No targets registered"))
         );
 }
+
+// ============================================================================
+// dry-run テスト
+// ============================================================================
+
+#[test]
+fn test_add_dry_run() {
+    let temp = TempDir::new().unwrap();
+    let config_path = temp.path().join("config.yaml");
+    let source = temp.path().join("source");
+    let target = temp.path().join("target");
+
+    fs::create_dir(&source).unwrap();
+    fs::create_dir(&target).unwrap();
+    fs::write(source.join("test.txt"), "hello").unwrap();
+
+    // dry-run でリンクが作成されないことを確認
+    amu_with_config(&config_path)
+        .arg("add")
+        .arg("--dry-run")
+        .arg(&source)
+        .arg(&target)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("[dry-run]"));
+
+    // リンクが作成されていないことを確認
+    assert!(!target.join("test.txt").exists());
+}
+
+#[test]
+fn test_add_dry_run_short_option() {
+    let temp = TempDir::new().unwrap();
+    let config_path = temp.path().join("config.yaml");
+    let source = temp.path().join("source");
+    let target = temp.path().join("target");
+
+    fs::create_dir(&source).unwrap();
+    fs::create_dir(&target).unwrap();
+    fs::write(source.join("test.txt"), "hello").unwrap();
+
+    // -n オプションが動作することを確認
+    amu_with_config(&config_path)
+        .arg("add")
+        .arg("-n")
+        .arg(&source)
+        .arg(&target)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("[dry-run]"));
+
+    // リンクが作成されていないことを確認
+    assert!(!target.join("test.txt").exists());
+}
+
+#[test]
+fn test_remove_dry_run() {
+    let temp = TempDir::new().unwrap();
+    let config_path = temp.path().join("config.yaml");
+    let source = temp.path().join("source");
+    let target = temp.path().join("target");
+
+    fs::create_dir(&source).unwrap();
+    fs::create_dir(&target).unwrap();
+    fs::write(source.join("test.txt"), "hello").unwrap();
+
+    // まず add
+    amu_with_config(&config_path)
+        .arg("add")
+        .arg(&source)
+        .arg(&target)
+        .assert()
+        .success();
+
+    assert!(target.join("test.txt").exists());
+
+    // dry-run でリンクが削除されないことを確認
+    amu_with_config(&config_path)
+        .arg("remove")
+        .arg("--dry-run")
+        .arg(&source)
+        .arg(&target)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("[dry-run]"));
+
+    // リンクがまだ存在することを確認
+    assert!(target.join("test.txt").exists());
+}
+
+#[test]
+fn test_clear_dry_run() {
+    let temp = TempDir::new().unwrap();
+    let config_path = temp.path().join("config.yaml");
+    let source = temp.path().join("source");
+    let target = temp.path().join("target");
+
+    fs::create_dir(&source).unwrap();
+    fs::create_dir(&target).unwrap();
+    fs::write(source.join("test.txt"), "hello").unwrap();
+
+    // まず add
+    amu_with_config(&config_path)
+        .arg("add")
+        .arg(&source)
+        .arg(&target)
+        .assert()
+        .success();
+
+    assert!(target.join("test.txt").exists());
+
+    // dry-run でリンクが削除されないことを確認
+    amu_with_config(&config_path)
+        .arg("clear")
+        .arg("--dry-run")
+        .arg(&target)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("[dry-run]"));
+
+    // リンクがまだ存在することを確認
+    assert!(target.join("test.txt").exists());
+}
+
+#[test]
+fn test_update_dry_run() {
+    let temp = TempDir::new().unwrap();
+    let config_path = temp.path().join("config.yaml");
+    let source = temp.path().join("source");
+    let target = temp.path().join("target");
+
+    fs::create_dir(&source).unwrap();
+    fs::create_dir(&target).unwrap();
+    fs::write(source.join("test.txt"), "hello").unwrap();
+
+    // まず add
+    amu_with_config(&config_path)
+        .arg("add")
+        .arg(&source)
+        .arg(&target)
+        .assert()
+        .success();
+
+    // dry-run で update
+    amu_with_config(&config_path)
+        .arg("update")
+        .arg("--dry-run")
+        .arg(&target)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("[dry-run]"));
+}
+
+#[test]
+fn test_restore_dry_run() {
+    let temp = TempDir::new().unwrap();
+    let config_path = temp.path().join("config.yaml");
+    let source = temp.path().join("source");
+    let target = temp.path().join("target");
+
+    fs::create_dir(&source).unwrap();
+    fs::create_dir(&target).unwrap();
+    fs::write(source.join("test.txt"), "hello").unwrap();
+
+    // まず add
+    amu_with_config(&config_path)
+        .arg("add")
+        .arg(&source)
+        .arg(&target)
+        .assert()
+        .success();
+
+    // リンクを手動で削除
+    fs::remove_file(target.join("test.txt")).unwrap();
+    assert!(!target.join("test.txt").exists());
+
+    // dry-run で restore
+    amu_with_config(&config_path)
+        .arg("restore")
+        .arg("--dry-run")
+        .arg(&target)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("[dry-run]"));
+
+    // リンクが復元されていないことを確認
+    assert!(!target.join("test.txt").exists());
+}
