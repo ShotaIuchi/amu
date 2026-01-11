@@ -23,6 +23,24 @@ sudo apt install stow
 sudo pacman -S stow
 ```
 
+### Homebrew
+
+```bash
+brew install ShotaIuchi/tap/amu
+```
+
+### Shell script
+
+```bash
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/ShotaIuchi/amu/releases/latest/download/amu-installer.sh | sh
+```
+
+### PowerShell
+
+```powershell
+powershell -ExecutionPolicy Bypass -c "irm https://github.com/ShotaIuchi/amu/releases/latest/download/amu-installer.ps1 | iex"
+```
+
 ### From source
 
 ```bash
@@ -40,12 +58,18 @@ amu add ~/dotfiles/claude ~/.claude
 # Or cd to target first
 cd ~/.claude
 amu add ~/dotfiles/claude
+
+# Preview changes without applying
+amu add --dry-run ~/dotfiles/claude ~/.claude
 ```
 
 ### Remove a source directory
 
 ```bash
 amu remove ~/dotfiles/claude ~/.claude
+
+# Preview changes
+amu remove --dry-run ~/dotfiles/claude ~/.claude
 ```
 
 ### Update (reapply) links
@@ -64,6 +88,9 @@ amu update --all
 cd ~/work-dotfiles/.claude
 git pull
 amu update --source .
+
+# Preview changes
+amu update --dry-run
 ```
 
 ### Restore links
@@ -79,6 +106,9 @@ amu restore ~/.claude
 
 # Restore all targets
 amu restore --all
+
+# Preview changes
+amu restore --dry-run
 ```
 
 ### List registered sources
@@ -108,6 +138,26 @@ amu status ~/.claude
 
 # Check all targets
 amu status --all
+
+# JSON output (for scripts)
+amu status --json
+```
+
+Status checks:
+- Link count per source
+- Broken symlinks
+- Real files (files that should be symlinks)
+- Permission issues
+- Conflicts
+
+Output example:
+```
+~/.config:
+  ✓ ~/dotfiles/nvim (12 links)
+  ! ~/dotfiles/zsh (real files found)
+    - .zshrc (expected symlink)
+
+Summary: 1 OK, 1 warning, 0 error
 ```
 
 ### Clear
@@ -121,6 +171,24 @@ amu clear ~/.claude
 
 # Clear all targets
 amu clear --all
+
+# Preview changes
+amu clear --dry-run
+```
+
+## Options
+
+### --dry-run (-n)
+
+Preview changes without applying them. Available for:
+- `add`
+- `remove`
+- `update`
+- `restore`
+- `clear`
+
+```bash
+amu add -n ~/dotfiles/nvim ~/.config/nvim
 ```
 
 ## Behavior
