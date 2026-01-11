@@ -4,7 +4,7 @@ Merge multiple source directories into one target with symlinks.
 
 ## Overview
 
-amu manages symlinks for dotfiles by merging multiple source directories into a single target directory.
+amu merges multiple source directories into a single target directory using symlinks.
 
 ## Installation
 
