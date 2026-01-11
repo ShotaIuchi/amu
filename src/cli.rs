@@ -4,7 +4,7 @@ use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
 #[command(name = "amu")]
-#[command(about = "Merge multiple sources into one target with symlinks using stow", long_about = None)]
+#[command(about = "Merge multiple source directories into one target with symlinks", long_about = None)]
 #[command(version)]
 pub struct Cli {
     #[command(subcommand)]

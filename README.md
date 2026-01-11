@@ -1,27 +1,12 @@
 # amu
 
-Merge multiple sources into one target with symlinks using stow.
+Merge multiple source directories into one target with symlinks.
 
 ## Overview
 
-amu manages symlinks for dotfiles by merging multiple source directories into a single target directory. It uses GNU stow internally.
+amu manages symlinks for dotfiles by merging multiple source directories into a single target directory.
 
 ## Installation
-
-### Prerequisites
-
-GNU stow must be installed:
-
-```bash
-# macOS
-brew install stow
-
-# Ubuntu/Debian
-sudo apt install stow
-
-# Arch Linux
-sudo pacman -S stow
-```
 
 ### Homebrew
 
