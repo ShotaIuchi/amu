@@ -93,6 +93,10 @@ pub enum Commands {
         /// Check all targets
         #[arg(long)]
         all: bool,
+
+        /// Output in JSON format
+        #[arg(long)]
+        json: bool,
     },
 
     /// Remove symlinks and clear configuration

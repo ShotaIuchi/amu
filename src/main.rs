@@ -29,7 +29,7 @@ fn run() -> Result<()> {
         Commands::Update { target, all, source, dry_run } => cmd_update(target, all, source, dry_run),
         Commands::Restore { target, all, dry_run } => cmd_restore(target, all, dry_run),
         Commands::List { target, all, verbose } => cmd_list(target, all, verbose),
-        Commands::Status { target, all } => cmd_status(target, all),
+        Commands::Status { target, all, json } => cmd_status(target, all, json),
         Commands::Clear { target, all, dry_run } => cmd_clear(target, all, dry_run),
     }
 }
@@ -274,7 +274,7 @@ fn collect_symlinks_recursive(base_target: &Path, sources: &[PathBuf], current: 
     }
 }
 
-fn cmd_status(target: Option<PathBuf>, all: bool) -> Result<()> {
+fn cmd_status(target: Option<PathBuf>, all: bool, json: bool) -> Result<()> {
     let config = Config::load()?;
 
     // ターゲットを決定
@@ -285,59 +285,154 @@ fn cmd_status(target: Option<PathBuf>, all: bool) -> Result<()> {
         if config.targets.contains_key(&t) {
             vec![t]
         } else {
-            println!("Target not registered: {}", abbreviate_path(&t));
+            if json {
+                println!("{{\"error\": \"Target not registered\"}}");
+            } else {
+                println!("Target not registered: {}", abbreviate_path(&t));
+            }
             return Ok(());
         }
     };
 
     if target_list.is_empty() {
-        println!("No targets registered.");
+        if json {
+            println!("{{\"targets\": [], \"summary\": {{\"ok\": 0, \"warning\": 0, \"error\": 0}}}}");
+        } else {
+            println!("No targets registered.");
+        }
         return Ok(());
     }
 
-    let mut has_issues = false;
+    let mut ok_count = 0;
+    let mut warning_count = 0;
+    let mut error_count = 0;
+    let mut json_targets: Vec<String> = Vec::new();
 
     for target in &target_list {
         if let Some(sources) = config.get_sources(target) {
-            println!("{}:", abbreviate_path(target));
+            if !json {
+                println!("{}:", abbreviate_path(target));
+            }
+            let mut json_sources: Vec<String> = Vec::new();
 
             for source in sources {
                 let status = check_source_status(source, target);
-                match status {
-                    SourceStatus::Ok => {
-                        println!("  \u{2713} {} (OK)", abbreviate_path(source));
+                match &status {
+                    SourceStatus::Ok { link_count } => {
+                        if json {
+                            json_sources.push(format!(
+                                "{{\"path\": \"{}\", \"status\": \"ok\", \"link_count\": {}}}",
+                                abbreviate_path(source), link_count
+                            ));
+                        } else {
+                            println!("  \u{2713} {} ({} links)", abbreviate_path(source), link_count);
+                        }
+                        ok_count += 1;
                     }
                     SourceStatus::SourceNotFound => {
-                        println!("  \u{2717} {} (source not found)", abbreviate_path(source));
-                        has_issues = true;
+                        if json {
+                            json_sources.push(format!(
+                                "{{\"path\": \"{}\", \"status\": \"error\", \"message\": \"source not found\"}}",
+                                abbreviate_path(source)
+                            ));
+                        } else {
+                            println!("  \u{2717} {} (source not found)", abbreviate_path(source));
+                        }
+                        error_count += 1;
                     }
                     SourceStatus::TargetNotFound => {
-                        println!("  \u{2717} {} (target not found)", abbreviate_path(source));
-                        has_issues = true;
+                        if json {
+                            json_sources.push(format!(
+                                "{{\"path\": \"{}\", \"status\": \"error\", \"message\": \"target not found\"}}",
+                                abbreviate_path(source)
+                            ));
+                        } else {
+                            println!("  \u{2717} {} (target not found)", abbreviate_path(source));
+                        }
+                        error_count += 1;
                     }
                     SourceStatus::BrokenLinks(links) => {
-                        println!("  ! {} (broken links)", abbreviate_path(source));
-                        for link in links {
-                            println!("    - {}", link);
-                        }
-                        has_issues = true;
-                    }
-                    SourceStatus::Conflicts(msg) => {
-                        println!("  ! {} (conflicts detected)", abbreviate_path(source));
-                        for line in msg.lines().take(5) {
-                            if !line.trim().is_empty() {
-                                println!("    {}", line.trim());
+                        if json {
+                            let links_json: Vec<String> = links.iter().map(|l| format!("\"{}\"", l)).collect();
+                            json_sources.push(format!(
+                                "{{\"path\": \"{}\", \"status\": \"warning\", \"message\": \"broken links\", \"details\": [{}]}}",
+                                abbreviate_path(source), links_json.join(", ")
+                            ));
+                        } else {
+                            println!("  ! {} (broken links)", abbreviate_path(source));
+                            for link in links {
+                                println!("    - {}", link);
                             }
                         }
-                        has_issues = true;
+                        warning_count += 1;
+                    }
+                    SourceStatus::Conflicts(msg) => {
+                        if json {
+                            let escaped_msg = msg.replace('\"', "\\\"").replace('\n', "\\n");
+                            json_sources.push(format!(
+                                "{{\"path\": \"{}\", \"status\": \"warning\", \"message\": \"conflicts\", \"details\": \"{}\"}}",
+                                abbreviate_path(source), escaped_msg
+                            ));
+                        } else {
+                            println!("  ! {} (conflicts detected)", abbreviate_path(source));
+                            for line in msg.lines().take(5) {
+                                if !line.trim().is_empty() {
+                                    println!("    {}", line.trim());
+                                }
+                            }
+                        }
+                        warning_count += 1;
+                    }
+                    SourceStatus::RealFiles(files) => {
+                        if json {
+                            let files_json: Vec<String> = files.iter().map(|f| format!("\"{}\"", f)).collect();
+                            json_sources.push(format!(
+                                "{{\"path\": \"{}\", \"status\": \"warning\", \"message\": \"real files (expected symlinks)\", \"details\": [{}]}}",
+                                abbreviate_path(source), files_json.join(", ")
+                            ));
+                        } else {
+                            println!("  ! {} (real files found)", abbreviate_path(source));
+                            for file in files {
+                                println!("    - {} (expected symlink)", file);
+                            }
+                        }
+                        warning_count += 1;
+                    }
+                    SourceStatus::PermissionDenied(msg) => {
+                        if json {
+                            json_sources.push(format!(
+                                "{{\"path\": \"{}\", \"status\": \"error\", \"message\": \"permission denied: {}\"}}",
+                                abbreviate_path(source), msg
+                            ));
+                        } else {
+                            println!("  \u{2717} {} (permission denied: {})", abbreviate_path(source), msg);
+                        }
+                        error_count += 1;
                     }
                 }
             }
-            println!();
+
+            if json {
+                json_targets.push(format!(
+                    "{{\"path\": \"{}\", \"sources\": [{}]}}",
+                    abbreviate_path(target), json_sources.join(", ")
+                ));
+            } else {
+                println!();
+            }
         }
     }
 
-    if has_issues {
+    if json {
+        println!(
+            "{{\"targets\": [{}], \"summary\": {{\"ok\": {}, \"warning\": {}, \"error\": {}}}}}",
+            json_targets.join(", "), ok_count, warning_count, error_count
+        );
+    } else {
+        println!("Summary: {} OK, {} warning, {} error", ok_count, warning_count, error_count);
+    }
+
+    if error_count > 0 || warning_count > 0 {
         std::process::exit(1);
     }
 
@@ -497,15 +592,27 @@ fn cmd_restore(target: Option<PathBuf>, all: bool, dry_run: bool) -> Result<()> 
     Ok(())
 }
 
+/*
+ * ソースのステータスを表す列挙型
+ */
 enum SourceStatus {
-    Ok,
+    Ok { link_count: usize },
     SourceNotFound,
     TargetNotFound,
     BrokenLinks(Vec<String>),
     Conflicts(String),
+    RealFiles(Vec<String>),
+    PermissionDenied(String),
 }
 
 fn check_source_status(source: &Path, target: &Path) -> SourceStatus {
+    // 権限チェック
+    if let Err(e) = std::fs::read_dir(source) {
+        if e.kind() == std::io::ErrorKind::PermissionDenied {
+            return SourceStatus::PermissionDenied(format!("source: {}", source.display()));
+        }
+        return SourceStatus::SourceNotFound;
+    }
     if !source.exists() {
         return SourceStatus::SourceNotFound;
     }
@@ -513,39 +620,109 @@ fn check_source_status(source: &Path, target: &Path) -> SourceStatus {
         return SourceStatus::TargetNotFound;
     }
 
+    // 壊れたリンクのチェック
     let broken_links = find_broken_links(source, target);
     if !broken_links.is_empty() {
         return SourceStatus::BrokenLinks(broken_links);
     }
 
+    // 実ファイルのチェック（リンクであるべき場所に実ファイルがある）
+    let real_files = find_real_files(source, target);
+    if !real_files.is_empty() {
+        return SourceStatus::RealFiles(real_files);
+    }
+
+    // コンフリクトのチェック
     if let Ok(output) = stow::dry_run(source, target) {
         if output.contains("CONFLICT") || output.contains("existing target") {
             return SourceStatus::Conflicts(output);
         }
     }
 
-    SourceStatus::Ok
+    // リンク数をカウント
+    let link_count = count_links(source, target);
+    SourceStatus::Ok { link_count }
 }
 
+/*
+ * 壊れたシンボリックリンクを検出する
+ */
 fn find_broken_links(source: &Path, target: &Path) -> Vec<String> {
     let mut broken = Vec::new();
+    find_broken_links_recursive(source, target, source, &mut broken);
+    broken
+}
 
-    if let Ok(entries) = std::fs::read_dir(source) {
+fn find_broken_links_recursive(source_base: &Path, target: &Path, current_source: &Path, broken: &mut Vec<String>) {
+    if let Ok(entries) = std::fs::read_dir(current_source) {
         for entry in entries.flatten() {
-            let file_name = entry.file_name();
-            let target_path = target.join(&file_name);
+            let source_path = entry.path();
+            let relative = source_path.strip_prefix(source_base).unwrap_or(&source_path);
+            let target_path = target.join(relative);
 
-            if target_path.is_symlink() {
-                if let Ok(link_target) = std::fs::read_link(&target_path) {
-                    if !link_target.exists() && !target_path.exists() {
-                        broken.push(file_name.to_string_lossy().to_string());
-                    }
+            if source_path.is_dir() && !source_path.is_symlink() {
+                find_broken_links_recursive(source_base, target, &source_path, broken);
+            } else if target_path.is_symlink() {
+                // リンクが壊れているかチェック
+                if !target_path.exists() {
+                    broken.push(relative.display().to_string());
                 }
             }
         }
     }
+}
 
-    broken
+/*
+ * リンクであるべき場所に実ファイルがあるか検出する
+ */
+fn find_real_files(source: &Path, target: &Path) -> Vec<String> {
+    let mut real_files = Vec::new();
+    find_real_files_recursive(source, target, source, &mut real_files);
+    real_files
+}
+
+fn find_real_files_recursive(source_base: &Path, target: &Path, current_source: &Path, real_files: &mut Vec<String>) {
+    if let Ok(entries) = std::fs::read_dir(current_source) {
+        for entry in entries.flatten() {
+            let source_path = entry.path();
+            let relative = source_path.strip_prefix(source_base).unwrap_or(&source_path);
+            let target_path = target.join(relative);
+
+            if source_path.is_dir() && !source_path.is_symlink() {
+                find_real_files_recursive(source_base, target, &source_path, real_files);
+            } else if source_path.is_file() {
+                // ターゲットに同名のファイルがあり、シンボリックリンクでない場合
+                if target_path.exists() && !target_path.is_symlink() {
+                    real_files.push(relative.display().to_string());
+                }
+            }
+        }
+    }
+}
+
+/*
+ * ソースからターゲットへのリンク数をカウントする
+ */
+fn count_links(source: &Path, target: &Path) -> usize {
+    let mut count = 0;
+    count_links_recursive(source, target, source, &mut count);
+    count
+}
+
+fn count_links_recursive(source_base: &Path, target: &Path, current_source: &Path, count: &mut usize) {
+    if let Ok(entries) = std::fs::read_dir(current_source) {
+        for entry in entries.flatten() {
+            let source_path = entry.path();
+            let relative = source_path.strip_prefix(source_base).unwrap_or(&source_path);
+            let target_path = target.join(relative);
+
+            if source_path.is_dir() && !source_path.is_symlink() {
+                count_links_recursive(source_base, target, &source_path, count);
+            } else if target_path.is_symlink() {
+                *count += 1;
+            }
+        }
+    }
 }
 
 fn abbreviate_path(path: &Path) -> String {

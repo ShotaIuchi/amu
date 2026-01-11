@@ -1067,3 +1067,142 @@ fn test_restore_dry_run() {
     // リンクが復元されていないことを確認
     assert!(!target.join("test.txt").exists());
 }
+
+// === status コマンド拡張テスト ===
+
+#[test]
+fn test_status_json_output() {
+    let temp = TempDir::new().unwrap();
+    let config_path = temp.path().join("config.yaml");
+    let source = temp.path().join("source");
+    let target = temp.path().join("target");
+
+    fs::create_dir(&source).unwrap();
+    fs::create_dir(&target).unwrap();
+    fs::write(source.join("test.txt"), "hello").unwrap();
+
+    // まず add
+    amu_with_config(&config_path)
+        .arg("add")
+        .arg(&source)
+        .arg(&target)
+        .assert()
+        .success();
+
+    // JSON 出力を確認
+    amu_with_config(&config_path)
+        .arg("status")
+        .arg("--json")
+        .arg(&target)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("\"status\": \"ok\""))
+        .stdout(predicate::str::contains("\"link_count\""))
+        .stdout(predicate::str::contains("\"summary\""));
+}
+
+#[test]
+fn test_status_link_count() {
+    let temp = TempDir::new().unwrap();
+    let config_path = temp.path().join("config.yaml");
+    let source = temp.path().join("source");
+    let target = temp.path().join("target");
+
+    fs::create_dir(&source).unwrap();
+    fs::create_dir(&target).unwrap();
+    fs::write(source.join("file1.txt"), "1").unwrap();
+    fs::write(source.join("file2.txt"), "2").unwrap();
+    fs::write(source.join("file3.txt"), "3").unwrap();
+
+    // まず add
+    amu_with_config(&config_path)
+        .arg("add")
+        .arg(&source)
+        .arg(&target)
+        .assert()
+        .success();
+
+    // リンク数が表示されることを確認
+    amu_with_config(&config_path)
+        .arg("status")
+        .arg(&target)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("3 links"));
+}
+
+#[test]
+fn test_status_real_files_detection() {
+    let temp = TempDir::new().unwrap();
+    let config_path = temp.path().join("config.yaml");
+    let source = temp.path().join("source");
+    let target = temp.path().join("target");
+
+    fs::create_dir(&source).unwrap();
+    fs::create_dir(&target).unwrap();
+    fs::write(source.join("test.txt"), "source").unwrap();
+
+    // まず add
+    amu_with_config(&config_path)
+        .arg("add")
+        .arg(&source)
+        .arg(&target)
+        .assert()
+        .success();
+
+    // リンクを削除して実ファイルで置き換え
+    fs::remove_file(target.join("test.txt")).unwrap();
+    fs::write(target.join("test.txt"), "real file").unwrap();
+
+    // status でリアルファイルが検出されることを確認
+    amu_with_config(&config_path)
+        .arg("status")
+        .arg(&target)
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("real files found"));
+}
+
+#[test]
+fn test_status_summary() {
+    let temp = TempDir::new().unwrap();
+    let config_path = temp.path().join("config.yaml");
+    let source = temp.path().join("source");
+    let target = temp.path().join("target");
+
+    fs::create_dir(&source).unwrap();
+    fs::create_dir(&target).unwrap();
+    fs::write(source.join("test.txt"), "hello").unwrap();
+
+    // まず add
+    amu_with_config(&config_path)
+        .arg("add")
+        .arg(&source)
+        .arg(&target)
+        .assert()
+        .success();
+
+    // Summary が表示されることを確認
+    amu_with_config(&config_path)
+        .arg("status")
+        .arg(&target)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Summary:"))
+        .stdout(predicate::str::contains("OK"));
+}
+
+#[test]
+fn test_status_json_empty() {
+    let temp = TempDir::new().unwrap();
+    let config_path = temp.path().join("config.yaml");
+
+    // 空の設定でJSON出力
+    amu_with_config(&config_path)
+        .arg("status")
+        .arg("--all")
+        .arg("--json")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("\"targets\": []"));
+}
