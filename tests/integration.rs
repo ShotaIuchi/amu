@@ -21,7 +21,7 @@ fn test_help() {
         .arg("--help")
         .assert()
         .success()
-        .stdout(predicate::str::contains("Merge multiple sources into one target"));
+        .stdout(predicate::str::contains("Merge multiple source directories into one target with symlinks"));
 }
 
 #[test]
@@ -287,14 +287,53 @@ fn test_list_verbose() {
         .assert()
         .success();
 
-    // List with verbose - shows sources section
+    // List with verbose - shows sources section and links section
     amu_with_config(&config_path)
         .arg("list")
         .arg(&target)
         .arg("--verbose")
         .assert()
         .success()
-        .stdout(predicate::str::contains("sources:"));
+        .stdout(predicate::str::contains("sources:"))
+        .stdout(predicate::str::contains("links:"))
+        .stdout(predicate::str::contains("test.txt"));
+}
+
+#[test]
+fn test_list_verbose_shows_all_links() {
+    let temp = TempDir::new().unwrap();
+    let config_path = temp.path().join("config.yaml");
+    let source = temp.path().join("source");
+    let target = temp.path().join("target");
+
+    fs::create_dir(&source).unwrap();
+    fs::create_dir(&target).unwrap();
+
+    // 複数ファイルとサブディレクトリを作成
+    fs::write(source.join("file1.txt"), "1").unwrap();
+    fs::write(source.join("file2.txt"), "2").unwrap();
+    fs::create_dir(source.join("subdir")).unwrap();
+    fs::write(source.join("subdir").join("file3.txt"), "3").unwrap();
+
+    // Add
+    amu_with_config(&config_path)
+        .arg("add")
+        .arg(&source)
+        .arg(&target)
+        .assert()
+        .success();
+
+    // List with verbose - 全てのリンクが表示されることを確認
+    amu_with_config(&config_path)
+        .arg("list")
+        .arg(&target)
+        .arg("--verbose")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("links:"))
+        .stdout(predicate::str::contains("file1.txt"))
+        .stdout(predicate::str::contains("file2.txt"))
+        .stdout(predicate::str::contains("file3.txt"));
 }
 
 #[test]

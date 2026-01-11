@@ -255,11 +255,13 @@ fn collect_symlinks_recursive(base_target: &Path, sources: &[PathBuf], current: 
             if path.is_symlink() {
                 if let Ok(link_target) = std::fs::read_link(&path) {
                     // Check if this symlink points to one of our sources
-                    let abs_target = if link_target.is_absolute() {
+                    let joined = if link_target.is_absolute() {
                         link_target.clone()
                     } else {
                         path.parent().unwrap_or(current).join(&link_target)
                     };
+                    // canonicalize で相対パス（../）やシンボリックリンク（/tmp -> /private/tmp）を解決
+                    let abs_target = joined.canonicalize().unwrap_or(joined);
                     for source in sources {
                         if abs_target.starts_with(source) {
                             links.push((path.clone(), abs_target));
