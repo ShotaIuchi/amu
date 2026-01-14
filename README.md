@@ -6,7 +6,7 @@ Merge multiple source directories into one target with symlinks.
 
 amu merges multiple source directories into a single target directory using symlinks.
 
-![amu demo](demo/amu-demo.min.gif)
+![amu demo](demo/amu-demo.gif)
 
 ## Installation
 
