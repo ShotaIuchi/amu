@@ -80,6 +80,10 @@ pub enum Commands {
         #[arg(long)]
         all: bool,
 
+        /// Recursively list subdirectory targets
+        #[arg(short, long)]
+        recursive: bool,
+
         /// Show actual symlinks
         #[arg(short, long)]
         verbose: bool,
