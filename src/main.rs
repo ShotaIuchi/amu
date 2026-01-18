@@ -28,7 +28,7 @@ fn run() -> Result<()> {
         Commands::Remove { source, target, dry_run } => cmd_remove(source, target, dry_run),
         Commands::Update { target, all, source, dry_run } => cmd_update(target, all, source, dry_run),
         Commands::Restore { target, all, dry_run } => cmd_restore(target, all, dry_run),
-        Commands::List { target, all, recursive, verbose } => cmd_list(target, all, recursive, verbose),
+        Commands::List { target, all, flat, verbose } => cmd_list(target, all, !flat, verbose),
         Commands::Status { target, all, json } => cmd_status(target, all, json),
         Commands::Clear { target, all, dry_run } => cmd_clear(target, all, dry_run),
     }
