@@ -98,6 +98,10 @@ pub enum Commands {
         #[arg(long)]
         all: bool,
 
+        /// Non-recursive mode (only check current target)
+        #[arg(short = 'f', long)]
+        flat: bool,
+
         /// Output in JSON format
         #[arg(long)]
         json: bool,

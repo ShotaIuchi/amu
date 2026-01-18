@@ -29,7 +29,7 @@ fn run() -> Result<()> {
         Commands::Update { target, all, source, dry_run } => cmd_update(target, all, source, dry_run),
         Commands::Restore { target, all, dry_run } => cmd_restore(target, all, dry_run),
         Commands::List { target, all, flat, verbose } => cmd_list(target, all, !flat, verbose),
-        Commands::Status { target, all, json } => cmd_status(target, all, json),
+        Commands::Status { target, all, flat, json } => cmd_status(target, all, !flat, json),
         Commands::Clear { target, all, dry_run } => cmd_clear(target, all, dry_run),
     }
 }
@@ -289,7 +289,7 @@ fn collect_symlinks_recursive(base_target: &Path, sources: &[PathBuf], current: 
     }
 }
 
-fn cmd_status(target: Option<PathBuf>, all: bool, json: bool) -> Result<()> {
+fn cmd_status(target: Option<PathBuf>, all: bool, recursive: bool, json: bool) -> Result<()> {
     let config = Config::load()?;
 
     // ターゲットを決定
@@ -297,7 +297,24 @@ fn cmd_status(target: Option<PathBuf>, all: bool, json: bool) -> Result<()> {
         config.targets.keys().cloned().collect()
     } else {
         let t = resolve_target(target)?;
-        if config.targets.contains_key(&t) {
+        if recursive {
+            // 再帰モード: 指定ターゲットとそのサブディレクトリにある登録済みターゲットを収集
+            let mut targets: Vec<PathBuf> = config.targets.keys()
+                .filter(|registered| registered.starts_with(&t))
+                .cloned()
+                .collect();
+            // パスでソート（親ディレクトリが先に来るように）
+            targets.sort();
+            if targets.is_empty() {
+                if json {
+                    println!("{{\"error\": \"Target not registered\"}}");
+                } else {
+                    println!("Target not registered: {}", abbreviate_path(&t));
+                }
+                return Ok(());
+            }
+            targets
+        } else if config.targets.contains_key(&t) {
             vec![t]
         } else {
             if json {
