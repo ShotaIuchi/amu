@@ -48,8 +48,14 @@ pub enum Commands {
         #[arg(long)]
         all: bool,
 
-        /// Update all targets that reference this source
-        #[arg(short, long)]
+        /// Show what would be done without making changes
+        #[arg(short = 'n', long)]
+        dry_run: bool,
+    },
+
+    /// Sync targets from a source directory (interactive selection)
+    Sync {
+        /// Source directory (defaults to current directory)
         source: Option<PathBuf>,
 
         /// Show what would be done without making changes

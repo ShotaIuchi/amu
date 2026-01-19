@@ -336,33 +336,15 @@ fn test_list_verbose_shows_all_links() {
         .stdout(predicate::str::contains("file3.txt"));
 }
 
+// sync コマンドはインタラクティブなため、基本的なヘルプテストのみ
 #[test]
-fn test_update_source() {
-    let temp = TempDir::new().unwrap();
-    let config_path = temp.path().join("config.yaml");
-    let source = temp.path().join("source");
-    let target = temp.path().join("target");
-
-    fs::create_dir(&source).unwrap();
-    fs::create_dir(&target).unwrap();
-    fs::write(source.join("test.txt"), "hello").unwrap();
-
-    // Add
-    amu_with_config(&config_path)
-        .arg("add")
-        .arg(&source)
-        .arg(&target)
-        .assert()
-        .success();
-
-    // Update with --source
-    amu_with_config(&config_path)
-        .arg("update")
-        .arg("--source")
-        .arg(&source)
+fn test_sync_help() {
+    amu_cmd()
+        .arg("sync")
+        .arg("--help")
         .assert()
         .success()
-        .stdout(predicate::str::contains("target(s) updated"));
+        .stdout(predicate::str::contains("Sync targets from a source directory"));
 }
 
 // ============================================================================
@@ -750,34 +732,7 @@ fn test_list_short_verbose() {
         .stdout(predicate::str::contains("sources:"));
 }
 
-#[test]
-fn test_update_short_source() {
-    let temp = TempDir::new().unwrap();
-    let config_path = temp.path().join("config.yaml");
-    let source = temp.path().join("source");
-    let target = temp.path().join("target");
-
-    fs::create_dir(&source).unwrap();
-    fs::create_dir(&target).unwrap();
-    fs::write(source.join("test.txt"), "hello").unwrap();
-
-    // add
-    amu_with_config(&config_path)
-        .arg("add")
-        .arg(&source)
-        .arg(&target)
-        .assert()
-        .success();
-
-    // -s（短いオプション）で source 指定
-    amu_with_config(&config_path)
-        .arg("update")
-        .arg("-s")
-        .arg(&source)
-        .assert()
-        .success()
-        .stdout(predicate::str::contains("target(s) updated"));
-}
+// 注: test_update_short_source は sync コマンドに移行したため削除
 
 // ============================================================================
 // 競合・排他系テスト
@@ -811,23 +766,7 @@ fn test_list_target_with_all() {
         .success();
 }
 
-#[test]
-fn test_update_source_empty_result() {
-    let temp = TempDir::new().unwrap();
-    let config_path = temp.path().join("config.yaml");
-    let source = temp.path().join("source");
-
-    fs::create_dir(&source).unwrap();
-
-    // 登録されていないソースを指定
-    amu_with_config(&config_path)
-        .arg("update")
-        .arg("--source")
-        .arg(&source)
-        .assert()
-        .success()
-        .stdout(predicate::str::contains("No targets found"));
-}
+// 注: test_update_source_empty_result は sync コマンドに移行（インタラクティブのためスキップ）
 
 #[test]
 fn test_list_not_registered_target() {

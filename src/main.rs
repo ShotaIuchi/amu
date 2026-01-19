@@ -26,7 +26,8 @@ fn run() -> Result<()> {
     match cli.command {
         Commands::Add { source, target, dry_run } => cmd_add(source, target, dry_run),
         Commands::Remove { source, target, dry_run } => cmd_remove(source, target, dry_run),
-        Commands::Update { target, all, source, dry_run } => cmd_update(target, all, source, dry_run),
+        Commands::Update { target, all, dry_run } => cmd_update(target, all, dry_run),
+        Commands::Sync { source, dry_run } => cmd_sync(source, dry_run),
         Commands::Restore { target, all, dry_run } => cmd_restore(target, all, dry_run),
         Commands::List { target, all, flat, verbose } => cmd_list(target, all, !flat, verbose),
         Commands::Status { target, all, flat, json } => cmd_status(target, all, !flat, json),
@@ -112,42 +113,8 @@ fn cmd_remove(source: PathBuf, target: Option<PathBuf>, dry_run: bool) -> Result
     Ok(())
 }
 
-fn cmd_update(target: Option<PathBuf>, all: bool, source: Option<PathBuf>, dry_run: bool) -> Result<()> {
+fn cmd_update(target: Option<PathBuf>, all: bool, dry_run: bool) -> Result<()> {
     let config = Config::load()?;
-
-    // --source モード: 指定ソースを参照している全ターゲットを更新
-    if let Some(src) = source {
-        let src = normalize_path(&src)?;
-        let mut updated = 0;
-
-        let prefix = if dry_run { "[dry-run] " } else { "" };
-        println!("{}Updating targets that reference {}:", prefix, abbreviate_path(&src));
-
-        for (target, sources) in &config.targets {
-            if sources.contains(&src) {
-                if src.exists() && target.exists() {
-                    if dry_run {
-                        let output = stow::dry_run_restow(&src, target)?;
-                        let links = stow::parse_dry_run_output(&output);
-                        println!("  {} (would restow {} links)", abbreviate_path(target), links.len());
-                    } else {
-                        stow::restow(&src, target)?;
-                        println!("  \u{2713} {}", abbreviate_path(target));
-                    }
-                    updated += 1;
-                } else if !target.exists() {
-                    println!("  \u{2717} {} (target not found)", abbreviate_path(target));
-                }
-            }
-        }
-
-        if updated == 0 {
-            println!("No targets found for this source.");
-        } else {
-            println!("\nDone: {} target(s) {}", updated, if dry_run { "would be updated" } else { "updated" });
-        }
-        return Ok(());
-    }
 
     // ターゲットを決定
     let targets: Vec<PathBuf> = if all {
@@ -192,6 +159,87 @@ fn cmd_update(target: Option<PathBuf>, all: bool, source: Option<PathBuf>, dry_r
     }
 
     Ok(())
+}
+
+fn cmd_sync(source: Option<PathBuf>, dry_run: bool) -> Result<()> {
+    let config = Config::load()?;
+
+    // ソースを解決（省略時はカレントディレクトリ）
+    let source = match source {
+        Some(s) => normalize_path(&s)?,
+        None => normalize_path(&std::env::current_dir()?)?,
+    };
+
+    // このソースを参照しているターゲットを検索
+    let targets: Vec<PathBuf> = config.targets.iter()
+        .filter(|(_, sources)| sources.contains(&source))
+        .map(|(target, _)| target.clone())
+        .collect();
+
+    if targets.is_empty() {
+        println!("No targets found for source: {}", abbreviate_path(&source));
+        println!("(This directory is not registered as a source)");
+        return Ok(());
+    }
+
+    println!("Syncing from source: {}\n", abbreviate_path(&source));
+
+    // インタラクティブ選択
+    let selected = select_targets_interactive(&targets)?;
+
+    if selected.is_empty() {
+        return Ok(());
+    }
+
+    // 選択されたターゲットを更新
+    let prefix = if dry_run { "[dry-run] " } else { "" };
+    for target in selected {
+        if dry_run {
+            let output = stow::dry_run_restow(&source, &target)?;
+            let links = stow::parse_dry_run_output(&output);
+            println!("{}Would restow: {} ({} links)", prefix, abbreviate_path(&target), links.len());
+        } else {
+            stow::restow(&source, &target)?;
+            println!("✓ {}", abbreviate_path(&target));
+        }
+    }
+
+    Ok(())
+}
+
+/*
+ * インタラクティブにターゲットを選択する
+ */
+fn select_targets_interactive(targets: &[PathBuf]) -> Result<Vec<PathBuf>> {
+    use dialoguer::MultiSelect;
+
+    // 「全部」オプション + 各ターゲット
+    let mut items: Vec<String> = vec!["全部".to_string()];
+    items.extend(targets.iter().map(|t| abbreviate_path(t)));
+
+    // デフォルトは全て未選択
+    let selections = MultiSelect::new()
+        .with_prompt("Select targets to update")
+        .items(&items)
+        .interact()
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+
+    if selections.is_empty() {
+        println!("No targets selected.");
+        return Ok(vec![]);
+    }
+
+    // 「全部」が選択された場合
+    if selections.contains(&0) {
+        Ok(targets.to_vec())
+    } else {
+        // 選択されたターゲットを返す（インデックス 0 は「全部」なので -1）
+        let result: Vec<PathBuf> = selections.iter()
+            .filter(|&&i| i > 0)
+            .map(|&i| targets[i - 1].clone())
+            .collect();
+        Ok(result)
+    }
 }
 
 fn cmd_list(target: Option<PathBuf>, all: bool, recursive: bool, verbose: bool) -> Result<()> {
