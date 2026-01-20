@@ -46,7 +46,7 @@ fn cmd_add(source: PathBuf, target: Option<PathBuf>, dry_run: bool) -> Result<()
         return Err(DotlinkError::TargetNotFound(target));
     }
 
-    // dry-run モード: プレビューのみ
+    // dry-run mode: preview only
     if dry_run {
         println!("[dry-run] add {} -> {}", abbreviate_path(&source), abbreviate_path(&target));
         let output = stow::dry_run(&source, &target)?;
@@ -81,7 +81,7 @@ fn cmd_remove(source: PathBuf, target: Option<PathBuf>, dry_run: bool) -> Result
         source
     };
 
-    // dry-run モード: プレビューのみ
+    // dry-run mode: preview only
     if dry_run {
         println!("[dry-run] remove {} -> {}", abbreviate_path(&source), abbreviate_path(&target));
         if source.exists() {
@@ -116,7 +116,7 @@ fn cmd_remove(source: PathBuf, target: Option<PathBuf>, dry_run: bool) -> Result
 fn cmd_update(target: Option<PathBuf>, all: bool, dry_run: bool) -> Result<()> {
     let config = Config::load()?;
 
-    // ターゲットを決定
+    // Determine targets
     let targets: Vec<PathBuf> = if all {
         config.targets.keys().cloned().collect()
     } else {
@@ -164,13 +164,13 @@ fn cmd_update(target: Option<PathBuf>, all: bool, dry_run: bool) -> Result<()> {
 fn cmd_sync(source: Option<PathBuf>, dry_run: bool) -> Result<()> {
     let config = Config::load()?;
 
-    // ソースを解決（省略時はカレントディレクトリ）
+    // Resolve source (defaults to current directory if omitted)
     let source = match source {
         Some(s) => normalize_path(&s)?,
         None => normalize_path(&std::env::current_dir()?)?,
     };
 
-    // このソースを参照しているターゲットを検索
+    // Find targets that reference this source
     let targets: Vec<PathBuf> = config.targets.iter()
         .filter(|(_, sources)| sources.contains(&source))
         .map(|(target, _)| target.clone())
@@ -184,14 +184,14 @@ fn cmd_sync(source: Option<PathBuf>, dry_run: bool) -> Result<()> {
 
     println!("Syncing from source: {}\n", abbreviate_path(&source));
 
-    // インタラクティブ選択
+    // Interactive selection
     let selected = select_targets_interactive(&targets)?;
 
     if selected.is_empty() {
         return Ok(());
     }
 
-    // 選択されたターゲットを更新
+    // Update selected targets
     let prefix = if dry_run { "[dry-run] " } else { "" };
     for target in selected {
         if dry_run {
@@ -208,16 +208,16 @@ fn cmd_sync(source: Option<PathBuf>, dry_run: bool) -> Result<()> {
 }
 
 /*
- * インタラクティブにターゲットを選択する
+ * Interactively select targets
  */
 fn select_targets_interactive(targets: &[PathBuf]) -> Result<Vec<PathBuf>> {
     use dialoguer::MultiSelect;
 
-    // 「全部」オプション + 各ターゲット
-    let mut items: Vec<String> = vec!["全部".to_string()];
+    // "All" option + each target
+    let mut items: Vec<String> = vec!["All".to_string()];
     items.extend(targets.iter().map(|t| abbreviate_path(t)));
 
-    // デフォルトは全て未選択（Esc でキャンセル可能）
+    // Default is all unselected (Esc to cancel)
     let selections = MultiSelect::new()
         .with_prompt("Select targets to update (Esc to cancel)")
         .items(&items)
@@ -236,11 +236,11 @@ fn select_targets_interactive(targets: &[PathBuf]) -> Result<Vec<PathBuf>> {
         Some(s) => s,
     };
 
-    // 「全部」が選択された場合
+    // If "All" is selected
     if selections.contains(&0) {
         Ok(targets.to_vec())
     } else {
-        // 選択されたターゲットを返す（インデックス 0 は「全部」なので -1）
+        // Return selected targets (index 0 is "All", so subtract 1)
         let result: Vec<PathBuf> = selections.iter()
             .filter(|&&i| i > 0)
             .map(|&i| targets[i - 1].clone())
@@ -252,18 +252,18 @@ fn select_targets_interactive(targets: &[PathBuf]) -> Result<Vec<PathBuf>> {
 fn cmd_list(target: Option<PathBuf>, all: bool, recursive: bool, verbose: bool) -> Result<()> {
     let config = Config::load()?;
 
-    // ターゲットを決定
+    // Determine targets
     let target_list: Vec<PathBuf> = if all {
         config.targets.keys().cloned().collect()
     } else {
         let t = resolve_target(target)?;
         if recursive {
-            // 再帰モード: 指定ターゲットとそのサブディレクトリにある登録済みターゲットを収集
+            // Recursive mode: collect the specified target and registered targets in its subdirectories
             let mut targets: Vec<PathBuf> = config.targets.keys()
                 .filter(|registered| registered.starts_with(&t))
                 .cloned()
                 .collect();
-            // パスでソート（親ディレクトリが先に来るように）
+            // Sort by path (parent directories come first)
             targets.sort();
             if targets.is_empty() {
                 println!("Target not registered: {}", abbreviate_path(&t));
@@ -328,7 +328,7 @@ fn collect_symlinks_recursive(base_target: &Path, sources: &[PathBuf], current: 
                     } else {
                         path.parent().unwrap_or(current).join(&link_target)
                     };
-                    // canonicalize で相対パス（../）やシンボリックリンク（/tmp -> /private/tmp）を解決
+                    // Resolve relative paths (../) and symlinks (/tmp -> /private/tmp) with canonicalize
                     let abs_target = joined.canonicalize().unwrap_or(joined);
                     for source in sources {
                         if abs_target.starts_with(source) {
@@ -347,18 +347,18 @@ fn collect_symlinks_recursive(base_target: &Path, sources: &[PathBuf], current: 
 fn cmd_status(target: Option<PathBuf>, all: bool, recursive: bool, json: bool) -> Result<()> {
     let config = Config::load()?;
 
-    // ターゲットを決定
+    // Determine targets
     let target_list: Vec<PathBuf> = if all {
         config.targets.keys().cloned().collect()
     } else {
         let t = resolve_target(target)?;
         if recursive {
-            // 再帰モード: 指定ターゲットとそのサブディレクトリにある登録済みターゲットを収集
+            // Recursive mode: collect the specified target and registered targets in its subdirectories
             let mut targets: Vec<PathBuf> = config.targets.keys()
                 .filter(|registered| registered.starts_with(&t))
                 .cloned()
                 .collect();
-            // パスでソート（親ディレクトリが先に来るように）
+            // Sort by path (parent directories come first)
             targets.sort();
             if targets.is_empty() {
                 if json {
@@ -546,7 +546,7 @@ fn cmd_clear(target: Option<PathBuf>, all: bool, dry_run: bool) -> Result<()> {
         vec![t]
     };
 
-    // dry-run モード: プレビューのみ
+    // dry-run mode: preview only
     if dry_run {
         println!("[dry-run] Would clear:");
         for target in &targets_to_clear {
@@ -590,7 +590,7 @@ fn cmd_clear(target: Option<PathBuf>, all: bool, dry_run: bool) -> Result<()> {
 fn cmd_restore(target: Option<PathBuf>, all: bool, dry_run: bool) -> Result<()> {
     let config = Config::load()?;
 
-    // ターゲットを決定
+    // Determine targets
     let target_list: Vec<PathBuf> = if all {
         config.targets.keys().cloned().collect()
     } else {
@@ -608,7 +608,7 @@ fn cmd_restore(target: Option<PathBuf>, all: bool, dry_run: bool) -> Result<()> 
         return Ok(());
     }
 
-    // dry-run モード: プレビューのみ
+    // dry-run mode: preview only
     if dry_run {
         println!("[dry-run] Would restore:");
         for target in &target_list {
@@ -616,7 +616,7 @@ fn cmd_restore(target: Option<PathBuf>, all: bool, dry_run: bool) -> Result<()> 
             if let Some(sources) = config.get_sources(target) {
                 for source in sources {
                     if source.exists() {
-                        // ターゲットが存在しない場合も表示
+                        // Also show if target doesn't exist
                         if target.exists() {
                             let output = stow::dry_run(source, target)?;
                             let links = stow::parse_dry_run_output(&output);
@@ -680,7 +680,7 @@ fn cmd_restore(target: Option<PathBuf>, all: bool, dry_run: bool) -> Result<()> 
 }
 
 /*
- * ソースのステータスを表す列挙型
+ * Enum representing the status of a source
  */
 enum SourceStatus {
     Ok { link_count: usize },
@@ -693,7 +693,7 @@ enum SourceStatus {
 }
 
 fn check_source_status(source: &Path, target: &Path) -> SourceStatus {
-    // 権限チェック
+    // Permission check
     if let Err(e) = std::fs::read_dir(source) {
         if e.kind() == std::io::ErrorKind::PermissionDenied {
             return SourceStatus::PermissionDenied(format!("source: {}", source.display()));
@@ -707,32 +707,32 @@ fn check_source_status(source: &Path, target: &Path) -> SourceStatus {
         return SourceStatus::TargetNotFound;
     }
 
-    // 壊れたリンクのチェック
+    // Check for broken links
     let broken_links = find_broken_links(source, target);
     if !broken_links.is_empty() {
         return SourceStatus::BrokenLinks(broken_links);
     }
 
-    // 実ファイルのチェック（リンクであるべき場所に実ファイルがある）
+    // Check for real files (files exist where symlinks should be)
     let real_files = find_real_files(source, target);
     if !real_files.is_empty() {
         return SourceStatus::RealFiles(real_files);
     }
 
-    // コンフリクトのチェック
+    // Check for conflicts
     if let Ok(output) = stow::dry_run(source, target) {
         if output.contains("CONFLICT") || output.contains("existing target") {
             return SourceStatus::Conflicts(output);
         }
     }
 
-    // リンク数をカウント
+    // Count links
     let link_count = count_links(source, target);
     SourceStatus::Ok { link_count }
 }
 
 /*
- * 壊れたシンボリックリンクを検出する
+ * Detect broken symbolic links
  */
 fn find_broken_links(source: &Path, target: &Path) -> Vec<String> {
     let mut broken = Vec::new();
@@ -750,7 +750,7 @@ fn find_broken_links_recursive(source_base: &Path, target: &Path, current_source
             if source_path.is_dir() && !source_path.is_symlink() {
                 find_broken_links_recursive(source_base, target, &source_path, broken);
             } else if target_path.is_symlink() {
-                // リンクが壊れているかチェック
+                // Check if link is broken
                 if !target_path.exists() {
                     broken.push(relative.display().to_string());
                 }
@@ -760,7 +760,7 @@ fn find_broken_links_recursive(source_base: &Path, target: &Path, current_source
 }
 
 /*
- * リンクであるべき場所に実ファイルがあるか検出する
+ * Detect real files where symlinks should exist
  */
 fn find_real_files(source: &Path, target: &Path) -> Vec<String> {
     let mut real_files = Vec::new();
@@ -778,7 +778,7 @@ fn find_real_files_recursive(source_base: &Path, target: &Path, current_source: 
             if source_path.is_dir() && !source_path.is_symlink() {
                 find_real_files_recursive(source_base, target, &source_path, real_files);
             } else if source_path.is_file() {
-                // ターゲットに同名のファイルがあり、シンボリックリンクでない場合
+                // If a file with the same name exists in target and is not a symlink
                 if target_path.exists() && !target_path.is_symlink() {
                     real_files.push(relative.display().to_string());
                 }
@@ -788,7 +788,7 @@ fn find_real_files_recursive(source_base: &Path, target: &Path, current_source: 
 }
 
 /*
- * ソースからターゲットへのリンク数をカウントする
+ * Count the number of links from source to target
  */
 fn count_links(source: &Path, target: &Path) -> usize {
     let mut count = 0;
