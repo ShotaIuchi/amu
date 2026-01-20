@@ -1,13 +1,13 @@
 #!/bin/bash
-# デモ用ソースディレクトリ作成
+# Create demo source directories
 mkdir -p ~/company/dotdemo
 mkdir -p ~/myself/dotdemo
 mkdir -p ~/local/hoge
 
-# ターゲットディレクトリ作成
+# Create target directories
 mkdir -p ~/.demo/hoge
 
-# サンプルファイル作成
+# Create sample files
 echo "# company config" > ~/company/dotdemo/work.conf
 echo "# myself config" > ~/myself/dotdemo/personal.conf
 echo "# local config" > ~/local/hoge/local.conf

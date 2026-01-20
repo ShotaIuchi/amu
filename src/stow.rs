@@ -59,8 +59,8 @@ fn dry_run_with_args(extra_args: &[&str], source: &Path, target: &Path) -> Resul
 }
 
 /*
- * stow の dry-run 出力からリンク操作を抽出する
- * 出力例: "LINK: .config/nvim/init.lua => ../../../dotfiles/nvim/init.lua"
+ * Extract link operations from stow's dry-run output
+ * Example output: "LINK: .config/nvim/init.lua => ../../../dotfiles/nvim/init.lua"
  */
 pub fn parse_dry_run_output(output: &str) -> Vec<String> {
     output

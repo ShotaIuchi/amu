@@ -1,68 +1,68 @@
 # demo
 
-amu のデモ GIF を作成するためのスクリプト集。
+Scripts for creating amu demo GIF.
 
-## 必要なツール（macOS）
+## Required Tools (macOS)
 
 ### VHS
 
-ターミナル操作を録画して GIF を生成するツール。
+A tool for recording terminal operations and generating GIFs.
 
 ```bash
 brew install vhs
 ```
 
-### ffmpeg（オプション）
+### ffmpeg (Optional)
 
-GIF のリサイズに使用。
+Used for resizing GIFs.
 
 ```bash
 brew install ffmpeg
 ```
 
-## 使い方
+## Usage
 
-### 1. デモ環境のセットアップ
+### 1. Setup Demo Environment
 
 ```bash
 ./demo-setup.sh
 ```
 
-以下のディレクトリとファイルが作成される：
+The following directories and files will be created:
 - `~/company/dotdemo/work.conf`
 - `~/myself/dotdemo/personal.conf`
 - `~/local/hoge/local.conf`
 - `~/.demo/hoge/`
 
-### 2. GIF の録画
+### 2. Record GIF
 
 ```bash
 vhs demo.tape
 ```
 
-`amu-demo.gif` が生成される。
+`amu-demo.gif` will be generated.
 
-### 3. GIF のリサイズ（オプション）
+### 3. Resize GIF (Optional)
 
 ```bash
 ./resize.sh
 ```
 
-`amu-demo.min.gif`（900px幅、10fps）が生成される。
+`amu-demo.min.gif` (900px width, 10fps) will be generated.
 
-### 4. クリーンアップ
+### 4. Cleanup
 
 ```bash
 ./demo-cleanup.sh
 ```
 
-デモ用ディレクトリと amu の設定をすべて削除。
+Deletes all demo directories and amu configuration.
 
-## ファイル一覧
+## File List
 
-| ファイル | 説明 |
-|----------|------|
-| `demo-setup.sh` | デモ用ディレクトリ・ファイル作成 |
-| `demo.tape` | VHS 録画スクリプト |
-| `resize.sh` | GIF リサイズスクリプト |
-| `demo-cleanup.sh` | デモ環境クリーンアップ |
+| File | Description |
+|------|-------------|
+| `demo-setup.sh` | Create demo directories and files |
+| `demo.tape` | VHS recording script |
+| `resize.sh` | GIF resize script |
+| `demo-cleanup.sh` | Demo environment cleanup |

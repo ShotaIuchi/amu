@@ -33,11 +33,11 @@ Type "ls -l ./hoge" Enter
 Sleep 3s
 
 Ctrl+L
-# 一覧表示
+# List all
 Type "amu list" Enter
 Sleep 3s
 
 Ctrl+L
-# ステータス確認
+# Check status
 Type "amu status" Enter
 Sleep 3s

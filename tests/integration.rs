@@ -309,7 +309,7 @@ fn test_list_verbose_shows_all_links() {
     fs::create_dir(&source).unwrap();
     fs::create_dir(&target).unwrap();
 
-    // 複数ファイルとサブディレクトリを作成
+    // Create multiple files and subdirectories
     fs::write(source.join("file1.txt"), "1").unwrap();
     fs::write(source.join("file2.txt"), "2").unwrap();
     fs::create_dir(source.join("subdir")).unwrap();
@@ -323,7 +323,7 @@ fn test_list_verbose_shows_all_links() {
         .assert()
         .success();
 
-    // List with verbose - 全てのリンクが表示されることを確認
+    // List with verbose - verify all links are displayed
     amu_with_config(&config_path)
         .arg("list")
         .arg(&target)
@@ -336,7 +336,7 @@ fn test_list_verbose_shows_all_links() {
         .stdout(predicate::str::contains("file3.txt"));
 }
 
-// sync コマンドはインタラクティブなため、基本的なヘルプテストのみ
+// sync command is interactive, so only basic help test
 #[test]
 fn test_sync_help() {
     amu_cmd()
@@ -348,12 +348,12 @@ fn test_sync_help() {
 }
 
 // ============================================================================
-// CLI エラー系テスト
+// CLI error tests
 // ============================================================================
 
 #[test]
 fn test_no_subcommand() {
-    // サブコマンドなしで実行するとエラー
+    // Error when running without subcommand
     amu_cmd()
         .assert()
         .failure()
@@ -362,7 +362,7 @@ fn test_no_subcommand() {
 
 #[test]
 fn test_invalid_subcommand() {
-    // 無効なサブコマンド
+    // Invalid subcommand
     amu_cmd()
         .arg("invalid_command")
         .assert()
@@ -372,7 +372,7 @@ fn test_invalid_subcommand() {
 
 #[test]
 fn test_add_missing_source() {
-    // add で source 引数がない
+    // add without source argument
     amu_cmd()
         .arg("add")
         .assert()
@@ -382,7 +382,7 @@ fn test_add_missing_source() {
 
 #[test]
 fn test_remove_missing_source() {
-    // remove で source 引数がない
+    // remove without source argument
     amu_cmd()
         .arg("remove")
         .assert()
@@ -396,7 +396,7 @@ fn test_invalid_option() {
     let source = temp.path().join("source");
     let target = temp.path().join("target");
 
-    // 無効なオプション
+    // Invalid option
     amu_cmd()
         .arg("add")
         .arg("--invalid-option")
@@ -408,12 +408,12 @@ fn test_invalid_option() {
 }
 
 // ============================================================================
-// target デフォルト（現在ディレクトリ）系テスト
+// Target default (current directory) tests
 // ============================================================================
 
 #[test]
 fn test_add_without_target() {
-    // target を省略した場合、カレントディレクトリが使用される
+    // When target is omitted, current directory is used
     let temp = TempDir::new().unwrap();
     let config_path = temp.path().join("config.yaml");
     let source = temp.path().join("source");
@@ -431,7 +431,7 @@ fn test_add_without_target() {
         .success()
         .stdout(predicate::str::contains("Added:"));
 
-    // カレントディレクトリ（target）にシンボリックリンクが作成される
+    // Symlink is created in current directory (target)
     assert!(target.join("test.txt").exists());
 }
 
@@ -446,7 +446,7 @@ fn test_remove_without_target() {
     fs::create_dir(&target).unwrap();
     fs::write(source.join("test.txt"), "hello").unwrap();
 
-    // まず add
+    // First add
     amu_with_config(&config_path)
         .current_dir(&target)
         .arg("add")
@@ -454,7 +454,7 @@ fn test_remove_without_target() {
         .assert()
         .success();
 
-    // target 省略で remove
+    // remove with target omitted
     amu_with_config(&config_path)
         .current_dir(&target)
         .arg("remove")
@@ -485,7 +485,7 @@ fn test_list_without_target() {
         .assert()
         .success();
 
-    // target 省略で list（カレントディレクトリの情報を表示）
+    // list with target omitted (shows current directory info)
     amu_with_config(&config_path)
         .current_dir(&target)
         .arg("list")
@@ -513,7 +513,7 @@ fn test_status_without_target() {
         .assert()
         .success();
 
-    // target 省略で status
+    // status with target omitted
     amu_with_config(&config_path)
         .current_dir(&target)
         .arg("status")
@@ -540,7 +540,7 @@ fn test_update_without_target() {
         .assert()
         .success();
 
-    // target 省略で update（カレントディレクトリを更新）
+    // update with target omitted (updates current directory)
     amu_with_config(&config_path)
         .current_dir(&target)
         .arg("update")
@@ -568,10 +568,10 @@ fn test_restore_without_target() {
         .assert()
         .success();
 
-    // リンクを手動で削除
+    // Manually delete links
     fs::remove_file(target.join("test.txt")).unwrap();
 
-    // target 省略で restore
+    // restore with target omitted
     amu_with_config(&config_path)
         .current_dir(&target)
         .arg("restore")
@@ -601,7 +601,7 @@ fn test_clear_without_target() {
         .assert()
         .success();
 
-    // target 省略で clear
+    // clear with target omitted
     amu_with_config(&config_path)
         .current_dir(&target)
         .arg("clear")
@@ -613,7 +613,7 @@ fn test_clear_without_target() {
 }
 
 // ============================================================================
-// フラグ組み合わせ系テスト
+// Flag combination tests
 // ============================================================================
 
 #[test]
@@ -632,7 +632,7 @@ fn test_update_all() {
     fs::write(source1.join("file1.txt"), "hello1").unwrap();
     fs::write(source2.join("file2.txt"), "hello2").unwrap();
 
-    // 2つのソースを追加
+    // Add two sources
     amu_with_config(&config_path)
         .arg("add")
         .arg(&source1)
@@ -647,7 +647,7 @@ fn test_update_all() {
         .assert()
         .success();
 
-    // --all で全ターゲットを更新
+    // Update all targets with --all
     amu_with_config(&config_path)
         .arg("update")
         .arg("--all")
@@ -672,7 +672,7 @@ fn test_restore_all() {
     fs::write(source1.join("file1.txt"), "hello1").unwrap();
     fs::write(source2.join("file2.txt"), "hello2").unwrap();
 
-    // 2つのソースを追加
+    // Add two sources
     amu_with_config(&config_path)
         .arg("add")
         .arg(&source1)
@@ -687,11 +687,11 @@ fn test_restore_all() {
         .assert()
         .success();
 
-    // リンクを手動で削除
+    // Manually delete links
     fs::remove_file(target1.join("file1.txt")).unwrap();
     fs::remove_file(target2.join("file2.txt")).unwrap();
 
-    // --all で全ターゲットを復元
+    // Restore all targets with --all
     amu_with_config(&config_path)
         .arg("restore")
         .arg("--all")
@@ -722,7 +722,7 @@ fn test_list_short_verbose() {
         .assert()
         .success();
 
-    // -v（短いオプション）で verbose
+    // verbose with -v (short option)
     amu_with_config(&config_path)
         .arg("list")
         .arg(&target)
@@ -732,10 +732,10 @@ fn test_list_short_verbose() {
         .stdout(predicate::str::contains("sources:"));
 }
 
-// 注: test_update_short_source は sync コマンドに移行したため削除
+// Note: test_update_short_source was removed as it moved to sync command
 
 // ============================================================================
-// 競合・排他系テスト
+// Conflict and mutual exclusion tests
 // ============================================================================
 
 #[test]
@@ -757,7 +757,7 @@ fn test_list_target_with_all() {
         .assert()
         .success();
 
-    // target と --all を両方指定（--all が優先される）
+    // Specify both target and --all (--all takes precedence)
     amu_with_config(&config_path)
         .arg("list")
         .arg(&target)
@@ -766,7 +766,7 @@ fn test_list_target_with_all() {
         .success();
 }
 
-// 注: test_update_source_empty_result は sync コマンドに移行（インタラクティブのためスキップ）
+// Note: test_update_source_empty_result moved to sync command (skipped due to interactivity)
 
 #[test]
 fn test_list_not_registered_target() {
@@ -776,7 +776,7 @@ fn test_list_not_registered_target() {
 
     fs::create_dir(&target).unwrap();
 
-    // 登録されていないターゲットを指定
+    // Specify unregistered target
     amu_with_config(&config_path)
         .arg("list")
         .arg(&target)
@@ -793,7 +793,7 @@ fn test_status_not_registered_target() {
 
     fs::create_dir(&target).unwrap();
 
-    // 登録されていないターゲットを指定
+    // Specify unregistered target
     amu_with_config(&config_path)
         .arg("status")
         .arg(&target)
@@ -810,7 +810,7 @@ fn test_update_not_registered_target() {
 
     fs::create_dir(&target).unwrap();
 
-    // 登録されていないターゲットを指定
+    // Specify unregistered target
     amu_with_config(&config_path)
         .arg("update")
         .arg(&target)
@@ -827,7 +827,7 @@ fn test_restore_not_registered_target() {
 
     fs::create_dir(&target).unwrap();
 
-    // 登録されていないターゲットを指定
+    // Specify unregistered target
     amu_with_config(&config_path)
         .arg("restore")
         .arg(&target)
@@ -844,9 +844,9 @@ fn test_clear_not_registered_target() {
 
     fs::create_dir(&target).unwrap();
 
-    // 登録されていないターゲットを指定
-    // 設定が空の場合は "No targets registered." が出力される
-    // 設定はあるが指定ターゲットがない場合は "Target not registered" が出力される
+    // Specify unregistered target
+    // If config is empty, "No targets registered." is output
+    // If config exists but specified target is not registered, "Target not registered" is output
     amu_with_config(&config_path)
         .arg("clear")
         .arg(&target)
@@ -859,7 +859,7 @@ fn test_clear_not_registered_target() {
 }
 
 // ============================================================================
-// dry-run テスト
+// dry-run tests
 // ============================================================================
 
 #[test]
@@ -873,7 +873,7 @@ fn test_add_dry_run() {
     fs::create_dir(&target).unwrap();
     fs::write(source.join("test.txt"), "hello").unwrap();
 
-    // dry-run でリンクが作成されないことを確認
+    // Verify links are not created with dry-run
     amu_with_config(&config_path)
         .arg("add")
         .arg("--dry-run")
@@ -883,7 +883,7 @@ fn test_add_dry_run() {
         .success()
         .stdout(predicate::str::contains("[dry-run]"));
 
-    // リンクが作成されていないことを確認
+    // Verify links are not created
     assert!(!target.join("test.txt").exists());
 }
 
@@ -898,7 +898,7 @@ fn test_add_dry_run_short_option() {
     fs::create_dir(&target).unwrap();
     fs::write(source.join("test.txt"), "hello").unwrap();
 
-    // -n オプションが動作することを確認
+    // Verify -n option works
     amu_with_config(&config_path)
         .arg("add")
         .arg("-n")
@@ -908,7 +908,7 @@ fn test_add_dry_run_short_option() {
         .success()
         .stdout(predicate::str::contains("[dry-run]"));
 
-    // リンクが作成されていないことを確認
+    // Verify links are not created
     assert!(!target.join("test.txt").exists());
 }
 
@@ -923,7 +923,7 @@ fn test_remove_dry_run() {
     fs::create_dir(&target).unwrap();
     fs::write(source.join("test.txt"), "hello").unwrap();
 
-    // まず add
+    // First add
     amu_with_config(&config_path)
         .arg("add")
         .arg(&source)
@@ -933,7 +933,7 @@ fn test_remove_dry_run() {
 
     assert!(target.join("test.txt").exists());
 
-    // dry-run でリンクが削除されないことを確認
+    // Verify links are not deleted with dry-run
     amu_with_config(&config_path)
         .arg("remove")
         .arg("--dry-run")
@@ -943,7 +943,7 @@ fn test_remove_dry_run() {
         .success()
         .stdout(predicate::str::contains("[dry-run]"));
 
-    // リンクがまだ存在することを確認
+    // Verify links still exist
     assert!(target.join("test.txt").exists());
 }
 
@@ -958,7 +958,7 @@ fn test_clear_dry_run() {
     fs::create_dir(&target).unwrap();
     fs::write(source.join("test.txt"), "hello").unwrap();
 
-    // まず add
+    // First add
     amu_with_config(&config_path)
         .arg("add")
         .arg(&source)
@@ -968,7 +968,7 @@ fn test_clear_dry_run() {
 
     assert!(target.join("test.txt").exists());
 
-    // dry-run でリンクが削除されないことを確認
+    // Verify links are not deleted with dry-run
     amu_with_config(&config_path)
         .arg("clear")
         .arg("--dry-run")
@@ -977,7 +977,7 @@ fn test_clear_dry_run() {
         .success()
         .stdout(predicate::str::contains("[dry-run]"));
 
-    // リンクがまだ存在することを確認
+    // Verify links still exist
     assert!(target.join("test.txt").exists());
 }
 
@@ -992,7 +992,7 @@ fn test_update_dry_run() {
     fs::create_dir(&target).unwrap();
     fs::write(source.join("test.txt"), "hello").unwrap();
 
-    // まず add
+    // First add
     amu_with_config(&config_path)
         .arg("add")
         .arg(&source)
@@ -1000,7 +1000,7 @@ fn test_update_dry_run() {
         .assert()
         .success();
 
-    // dry-run で update
+    // update with dry-run
     amu_with_config(&config_path)
         .arg("update")
         .arg("--dry-run")
@@ -1021,7 +1021,7 @@ fn test_restore_dry_run() {
     fs::create_dir(&target).unwrap();
     fs::write(source.join("test.txt"), "hello").unwrap();
 
-    // まず add
+    // First add
     amu_with_config(&config_path)
         .arg("add")
         .arg(&source)
@@ -1029,11 +1029,11 @@ fn test_restore_dry_run() {
         .assert()
         .success();
 
-    // リンクを手動で削除
+    // Manually delete links
     fs::remove_file(target.join("test.txt")).unwrap();
     assert!(!target.join("test.txt").exists());
 
-    // dry-run で restore
+    // restore with dry-run
     amu_with_config(&config_path)
         .arg("restore")
         .arg("--dry-run")
@@ -1042,11 +1042,11 @@ fn test_restore_dry_run() {
         .success()
         .stdout(predicate::str::contains("[dry-run]"));
 
-    // リンクが復元されていないことを確認
+    // Verify links are not restored
     assert!(!target.join("test.txt").exists());
 }
 
-// === status コマンド拡張テスト ===
+// === status command extended tests ===
 
 #[test]
 fn test_status_json_output() {
@@ -1059,7 +1059,7 @@ fn test_status_json_output() {
     fs::create_dir(&target).unwrap();
     fs::write(source.join("test.txt"), "hello").unwrap();
 
-    // まず add
+    // First add
     amu_with_config(&config_path)
         .arg("add")
         .arg(&source)
@@ -1067,7 +1067,7 @@ fn test_status_json_output() {
         .assert()
         .success();
 
-    // JSON 出力を確認
+    // Verify JSON output
     amu_with_config(&config_path)
         .arg("status")
         .arg("--json")
@@ -1092,7 +1092,7 @@ fn test_status_link_count() {
     fs::write(source.join("file2.txt"), "2").unwrap();
     fs::write(source.join("file3.txt"), "3").unwrap();
 
-    // まず add
+    // First add
     amu_with_config(&config_path)
         .arg("add")
         .arg(&source)
@@ -1100,7 +1100,7 @@ fn test_status_link_count() {
         .assert()
         .success();
 
-    // リンク数が表示されることを確認
+    // Verify link count is displayed
     amu_with_config(&config_path)
         .arg("status")
         .arg(&target)
@@ -1120,7 +1120,7 @@ fn test_status_real_files_detection() {
     fs::create_dir(&target).unwrap();
     fs::write(source.join("test.txt"), "source").unwrap();
 
-    // まず add
+    // First add
     amu_with_config(&config_path)
         .arg("add")
         .arg(&source)
@@ -1128,11 +1128,11 @@ fn test_status_real_files_detection() {
         .assert()
         .success();
 
-    // リンクを削除して実ファイルで置き換え
+    // Delete link and replace with real file
     fs::remove_file(target.join("test.txt")).unwrap();
     fs::write(target.join("test.txt"), "real file").unwrap();
 
-    // status でリアルファイルが検出されることを確認
+    // Verify real files are detected by status
     amu_with_config(&config_path)
         .arg("status")
         .arg(&target)
@@ -1152,7 +1152,7 @@ fn test_status_summary() {
     fs::create_dir(&target).unwrap();
     fs::write(source.join("test.txt"), "hello").unwrap();
 
-    // まず add
+    // First add
     amu_with_config(&config_path)
         .arg("add")
         .arg(&source)
@@ -1160,7 +1160,7 @@ fn test_status_summary() {
         .assert()
         .success();
 
-    // Summary が表示されることを確認
+    // Verify Summary is displayed
     amu_with_config(&config_path)
         .arg("status")
         .arg(&target)
@@ -1175,7 +1175,7 @@ fn test_status_json_empty() {
     let temp = TempDir::new().unwrap();
     let config_path = temp.path().join("config.yaml");
 
-    // 空の設定でJSON出力
+    // JSON output with empty config
     amu_with_config(&config_path)
         .arg("status")
         .arg("--all")

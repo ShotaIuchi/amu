@@ -10,48 +10,48 @@
 [footer]
 ```
 
-## Type (必須)
+## Type (Required)
 
-| Type | 説明 |
-|------|------|
-| `feat` | 新機能の追加 |
-| `fix` | バグ修正 |
-| `docs` | ドキュメントのみの変更 |
-| `style` | コードの意味に影響しない変更（空白、フォーマット等） |
-| `refactor` | バグ修正でも機能追加でもないコード変更 |
-| `perf` | パフォーマンス改善 |
-| `test` | テストの追加・修正 |
-| `chore` | ビルドプロセスや補助ツールの変更 |
+| Type | Description |
+|------|-------------|
+| `feat` | Add new feature |
+| `fix` | Bug fix |
+| `docs` | Documentation only changes |
+| `style` | Changes that do not affect code meaning (whitespace, formatting, etc.) |
+| `refactor` | Code changes that neither fix bugs nor add features |
+| `perf` | Performance improvements |
+| `test` | Add or modify tests |
+| `chore` | Changes to build process or auxiliary tools |
 
-## Subject (必須)
+## Subject (Required)
 
-- 50文字以内を推奨
-- 末尾にピリオドを付けない
-- 命令形で記述（日本語の場合は体言止め可）
+- Recommended 50 characters or less
+- Do not end with a period
+- Use imperative mood
 
-## Body (任意)
+## Body (Optional)
 
-- 変更の理由や背景を記述
-- 72文字で改行を推奨
+- Describe the reason and background of the change
+- Recommended to wrap at 72 characters
 
-## Footer (任意)
+## Footer (Optional)
 
 - Breaking changes: `BREAKING CHANGE: <description>`
-- Issue参照: `Closes #123`, `Fixes #456`
+- Issue references: `Closes #123`, `Fixes #456`
 
-## 例
+## Examples
 
 ```
-feat: ユーザー認証機能を追加
+feat: add user authentication feature
 
-OAuth2.0を使用したログイン機能を実装。
-Google と GitHub のプロバイダーに対応。
+Implemented login functionality using OAuth2.0.
+Supports Google and GitHub providers.
 
 Closes #42
 ```
 
 ```
-fix: 検索結果が0件の場合のエラーを修正
+fix: fix error when search results are empty
 ```
 
 ```

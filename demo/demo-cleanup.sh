@@ -1,8 +1,8 @@
 #!/bin/bash
-# amuの設定をクリア
+# Clear amu configuration
 amu clear --all 2>/dev/null || true
 
-# 一時ディレクトリ削除
+# Delete temporary directories
 rm -rf ~/.demo
 rm -rf ~/company/dotdemo
 rm -rf ~/myself/dotdemo
