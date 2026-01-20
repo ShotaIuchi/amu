@@ -71,13 +71,25 @@ amu update ~/.claude
 # Update all targets
 amu update --all
 
-# Update all targets that reference a source
-cd ~/work-dotfiles/.claude
-git pull
-amu update --source .
-
 # Preview changes
 amu update --dry-run
+```
+
+### Sync from source
+
+Update all targets that reference a source directory (interactive selection):
+
+```bash
+# Sync from current directory
+cd ~/work-dotfiles/.claude
+git pull
+amu sync
+
+# Sync from specific source
+amu sync ~/dotfiles/claude
+
+# Preview changes
+amu sync --dry-run
 ```
 
 ### Restore links
@@ -101,7 +113,7 @@ amu restore --dry-run
 ### List registered sources
 
 ```bash
-# List current directory
+# List current directory (recursive by default)
 amu list
 
 # List specific target
@@ -110,6 +122,9 @@ amu list ~/.claude
 # List all targets
 amu list --all
 
+# Non-recursive mode (current target only)
+amu list --flat
+
 # Show actual symlinks
 amu list ~/.claude --verbose
 ```
@@ -117,7 +132,7 @@ amu list ~/.claude --verbose
 ### Check status
 
 ```bash
-# Check current directory
+# Check current directory (recursive by default)
 amu status
 
 # Check specific target
@@ -125,6 +140,9 @@ amu status ~/.claude
 
 # Check all targets
 amu status --all
+
+# Non-recursive mode (current target only)
+amu status --flat
 
 # JSON output (for scripts)
 amu status --json
@@ -171,6 +189,7 @@ Preview changes without applying them. Available for:
 - `add`
 - `remove`
 - `update`
+- `sync`
 - `restore`
 - `clear`
 
