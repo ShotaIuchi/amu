@@ -217,17 +217,24 @@ fn select_targets_interactive(targets: &[PathBuf]) -> Result<Vec<PathBuf>> {
     let mut items: Vec<String> = vec!["全部".to_string()];
     items.extend(targets.iter().map(|t| abbreviate_path(t)));
 
-    // デフォルトは全て未選択
+    // デフォルトは全て未選択（Esc でキャンセル可能）
     let selections = MultiSelect::new()
-        .with_prompt("Select targets to update")
+        .with_prompt("Select targets to update (Esc to cancel)")
         .items(&items)
-        .interact()
+        .interact_opt()
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
 
-    if selections.is_empty() {
-        println!("No targets selected.");
-        return Ok(vec![]);
-    }
+    let selections = match selections {
+        None => {
+            println!("Cancelled.");
+            return Ok(vec![]);
+        }
+        Some(s) if s.is_empty() => {
+            println!("No targets selected.");
+            return Ok(vec![]);
+        }
+        Some(s) => s,
+    };
 
     // 「全部」が選択された場合
     if selections.contains(&0) {
