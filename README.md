@@ -13,7 +13,7 @@ amu merges multiple source directories into a single target directory using syml
 ### Homebrew
 
 ```bash
-brew install ShotaIuchi/tap/amu
+brew install shotaiuchi/tap/amu
 ```
 
 ### Shell script
