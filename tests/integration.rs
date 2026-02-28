@@ -1466,3 +1466,198 @@ fn test_remove_deleted_source_preserves_other_links() {
     assert!(target.join("file2.txt").is_symlink());
     assert!(target.join("file2.txt").exists()); // not dangling
 }
+
+// ============================================================================
+// clean command tests
+// ============================================================================
+
+#[test]
+fn test_clean_removes_dangling_links() {
+    let temp = TempDir::new().unwrap();
+    let config_path = temp.path().join("config.yaml");
+    let source = temp.path().join("source");
+    let target = temp.path().join("target");
+
+    fs::create_dir(&source).unwrap();
+    fs::create_dir(&target).unwrap();
+    fs::write(source.join("test.txt"), "hello").unwrap();
+
+    // Add source
+    amu_with_config(&config_path)
+        .arg("add")
+        .arg(&source)
+        .arg(&target)
+        .assert()
+        .success();
+
+    assert!(target.join("test.txt").is_symlink());
+    assert!(target.join("test.txt").exists());
+
+    // Delete the source file to make the link dangling
+    fs::remove_file(source.join("test.txt")).unwrap();
+    assert!(target.join("test.txt").is_symlink());
+    assert!(!target.join("test.txt").exists()); // dangling
+
+    // Clean should remove the dangling link
+    amu_with_config(&config_path)
+        .arg("clean")
+        .arg(&target)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Cleaned"));
+
+    // Dangling symlink should be gone
+    assert!(!target.join("test.txt").is_symlink());
+}
+
+#[test]
+fn test_clean_dry_run() {
+    let temp = TempDir::new().unwrap();
+    let config_path = temp.path().join("config.yaml");
+    let source = temp.path().join("source");
+    let target = temp.path().join("target");
+
+    fs::create_dir(&source).unwrap();
+    fs::create_dir(&target).unwrap();
+    fs::write(source.join("test.txt"), "hello").unwrap();
+
+    // Add source
+    amu_with_config(&config_path)
+        .arg("add")
+        .arg(&source)
+        .arg(&target)
+        .assert()
+        .success();
+
+    // Delete source file to create dangling link
+    fs::remove_file(source.join("test.txt")).unwrap();
+
+    // dry-run should NOT delete the dangling link
+    amu_with_config(&config_path)
+        .arg("clean")
+        .arg("--dry-run")
+        .arg(&target)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("[dry-run]"))
+        .stdout(predicate::str::contains("Would remove"));
+
+    // Dangling symlink should still exist
+    assert!(target.join("test.txt").is_symlink());
+}
+
+#[test]
+fn test_clean_preserves_valid_links() {
+    let temp = TempDir::new().unwrap();
+    let config_path = temp.path().join("config.yaml");
+    let source = temp.path().join("source");
+    let target = temp.path().join("target");
+
+    fs::create_dir(&source).unwrap();
+    fs::create_dir(&target).unwrap();
+    fs::write(source.join("valid.txt"), "hello").unwrap();
+    fs::write(source.join("will_break.txt"), "goodbye").unwrap();
+
+    // Add source
+    amu_with_config(&config_path)
+        .arg("add")
+        .arg(&source)
+        .arg(&target)
+        .assert()
+        .success();
+
+    assert!(target.join("valid.txt").is_symlink());
+    assert!(target.join("will_break.txt").is_symlink());
+
+    // Delete only one source file
+    fs::remove_file(source.join("will_break.txt")).unwrap();
+
+    // Clean should remove only the dangling link
+    amu_with_config(&config_path)
+        .arg("clean")
+        .arg(&target)
+        .assert()
+        .success();
+
+    // Valid link should still be there
+    assert!(target.join("valid.txt").is_symlink());
+    assert!(target.join("valid.txt").exists());
+    // Dangling link should be gone
+    assert!(!target.join("will_break.txt").is_symlink());
+}
+
+#[test]
+fn test_clean_all() {
+    let temp = TempDir::new().unwrap();
+    let config_path = temp.path().join("config.yaml");
+    let source1 = temp.path().join("source1");
+    let source2 = temp.path().join("source2");
+    let target1 = temp.path().join("target1");
+    let target2 = temp.path().join("target2");
+
+    fs::create_dir(&source1).unwrap();
+    fs::create_dir(&source2).unwrap();
+    fs::create_dir(&target1).unwrap();
+    fs::create_dir(&target2).unwrap();
+    fs::write(source1.join("file1.txt"), "1").unwrap();
+    fs::write(source2.join("file2.txt"), "2").unwrap();
+
+    // Add sources to different targets
+    amu_with_config(&config_path)
+        .arg("add")
+        .arg(&source1)
+        .arg(&target1)
+        .assert()
+        .success();
+
+    amu_with_config(&config_path)
+        .arg("add")
+        .arg(&source2)
+        .arg(&target2)
+        .assert()
+        .success();
+
+    // Delete both source files to make links dangling
+    fs::remove_file(source1.join("file1.txt")).unwrap();
+    fs::remove_file(source2.join("file2.txt")).unwrap();
+
+    // Clean --all should remove dangling links from both targets
+    amu_with_config(&config_path)
+        .arg("clean")
+        .arg("--all")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Cleaned"));
+
+    // Both dangling links should be gone
+    assert!(!target1.join("file1.txt").is_symlink());
+    assert!(!target2.join("file2.txt").is_symlink());
+}
+
+#[test]
+fn test_clean_no_broken_links() {
+    let temp = TempDir::new().unwrap();
+    let config_path = temp.path().join("config.yaml");
+    let source = temp.path().join("source");
+    let target = temp.path().join("target");
+
+    fs::create_dir(&source).unwrap();
+    fs::create_dir(&target).unwrap();
+    fs::write(source.join("test.txt"), "hello").unwrap();
+
+    // Add source
+    amu_with_config(&config_path)
+        .arg("add")
+        .arg(&source)
+        .arg(&target)
+        .assert()
+        .success();
+
+    // All links are valid — clean should report no dangling links
+    amu_with_config(&config_path)
+        .arg("clean")
+        .arg(&target)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("No dangling links found"));
+}

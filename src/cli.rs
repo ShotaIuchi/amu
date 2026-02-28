@@ -126,4 +126,22 @@ pub enum Commands {
         #[arg(short = 'n', long)]
         dry_run: bool,
     },
+
+    /// Remove dangling symlinks from targets
+    Clean {
+        /// Target directory to clean (defaults to current directory)
+        target: Option<PathBuf>,
+
+        /// Clean all targets
+        #[arg(long)]
+        all: bool,
+
+        /// Non-recursive mode (only clean current target)
+        #[arg(short = 'f', long)]
+        flat: bool,
+
+        /// Show what would be done without making changes
+        #[arg(short = 'n', long)]
+        dry_run: bool,
+    },
 }

@@ -34,6 +34,7 @@ fn run() -> Result<()> {
         Commands::List { target, all, flat, verbose } => cmd_list(target, all, !flat, verbose),
         Commands::Status { target, all, flat, json } => cmd_status(target, all, !flat, json),
         Commands::Clear { target, all, dry_run } => cmd_clear(target, all, dry_run),
+        Commands::Clean { target, all, flat, dry_run } => cmd_clean(target, all, !flat, dry_run),
     }
 }
 
@@ -641,6 +642,89 @@ fn cmd_clear(target: Option<PathBuf>, all: bool, dry_run: bool) -> Result<()> {
     } else {
         println!("Cleared: {}", abbreviate_path(&targets_to_clear[0]));
     }
+    Ok(())
+}
+
+fn cmd_clean(target: Option<PathBuf>, all: bool, recursive: bool, dry_run: bool) -> Result<()> {
+    let config = Config::load()?;
+    let mut links_record = LinksRecord::load()?;
+
+    // Determine targets
+    let targets: Vec<PathBuf> = if all {
+        config.targets.keys().cloned().collect()
+    } else {
+        let t = resolve_target(target)?;
+        if recursive {
+            let mut targets: Vec<PathBuf> = config.targets.keys()
+                .filter(|registered| registered.starts_with(&t))
+                .cloned()
+                .collect();
+            targets.sort();
+            if targets.is_empty() {
+                println!("Target not registered: {}", abbreviate_path(&t));
+                return Ok(());
+            }
+            targets
+        } else if config.targets.contains_key(&t) {
+            vec![t]
+        } else {
+            println!("Target not registered: {}", abbreviate_path(&t));
+            return Ok(());
+        }
+    };
+
+    if targets.is_empty() {
+        println!("No targets registered.");
+        return Ok(());
+    }
+
+    let prefix = if dry_run { "[dry-run] " } else { "" };
+    let mut total_removed = 0;
+
+    for target in &targets {
+        // Scan the target directory for all dangling symlinks
+        let dangling = links::find_dangling_links(target);
+        let registered_sources = config.get_sources(target).cloned().unwrap_or_default();
+
+        if dangling.is_empty() {
+            continue;
+        }
+
+        if dry_run {
+            for rel in &dangling {
+                println!("{}Would remove: {}", prefix, target.join(rel).display());
+            }
+        } else {
+            links::cleanup_dangling_links(target, &dangling);
+
+            // Update links.yaml: re-scan for each source and update records
+            for source in &registered_sources {
+                if source.exists() {
+                    let scanned = links::scan_links_for_source(target, source);
+                    links_record.record_links(target, source, scanned);
+                } else {
+                    links_record.remove_source(target, source);
+                }
+            }
+        }
+
+        let count = dangling.len();
+        println!(
+            "{}Cleaned {} dangling link(s) in {}",
+            prefix,
+            count,
+            abbreviate_path(target)
+        );
+
+        total_removed += count;
+    }
+
+    if total_removed == 0 {
+        println!("No dangling links found.");
+    } else if !dry_run {
+        links_record.save()?;
+    }
+
     Ok(())
 }
 

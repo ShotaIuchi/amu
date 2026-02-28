@@ -78,6 +78,36 @@ impl LinksRecord {
     }
 }
 
+/// Scan target directory for all dangling symlinks.
+/// Returns target-relative paths of dangling links.
+pub fn find_dangling_links(target: &Path) -> Vec<PathBuf> {
+    let mut dangling = Vec::new();
+    find_dangling_recursive(target, target, &mut dangling);
+    dangling.sort();
+    dangling
+}
+
+fn find_dangling_recursive(target_base: &Path, current: &Path, dangling: &mut Vec<PathBuf>) {
+    let entries = match fs::read_dir(current) {
+        Ok(e) => e,
+        Err(_) => return,
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_symlink() {
+            // Dangling: symlink exists but target does not
+            if !path.exists() {
+                if let Ok(relative) = path.strip_prefix(target_base) {
+                    dangling.push(relative.to_path_buf());
+                }
+            }
+        } else if path.is_dir() {
+            find_dangling_recursive(target_base, &path, dangling);
+        }
+    }
+}
+
 /// Scan target directory for symlinks pointing to source, returning target-relative paths.
 pub fn scan_links_for_source(target: &Path, source: &Path) -> Vec<PathBuf> {
     let mut links = Vec::new();
@@ -112,6 +142,37 @@ fn scan_links_recursive(target_base: &Path, source: &Path, current: &Path, links
             scan_links_recursive(target_base, source, &path, links);
         }
     }
+}
+
+/// Remove only dangling symlinks from recorded links. Returns count of removed links.
+pub fn cleanup_dangling_links(target: &Path, recorded: &[PathBuf]) -> usize {
+    let mut removed = 0;
+    let mut dirs_to_check: Vec<PathBuf> = Vec::new();
+
+    for relative in recorded {
+        let full_path = target.join(relative);
+        if full_path.is_symlink() && !full_path.exists() {
+            // Symlink exists but target does not — dangling
+            if fs::remove_file(&full_path).is_ok() {
+                removed += 1;
+                if let Some(parent) = full_path.parent() {
+                    if parent != target {
+                        dirs_to_check.push(parent.to_path_buf());
+                    }
+                }
+            }
+        }
+    }
+
+    // Remove empty directories depth-first
+    dirs_to_check.sort_by_key(|b| std::cmp::Reverse(b.components().count()));
+    dirs_to_check.dedup();
+
+    for dir in &dirs_to_check {
+        remove_empty_dirs_up_to(dir, target);
+    }
+
+    removed
 }
 
 /// Remove recorded symlinks that are dangling or point to source. Returns count of removed links.
