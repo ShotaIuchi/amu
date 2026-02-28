@@ -1,4 +1,5 @@
 use std::fs;
+use std::path::PathBuf;
 use std::process::Command;
 
 use assert_cmd::prelude::*;
@@ -1183,4 +1184,285 @@ fn test_status_json_empty() {
         .assert()
         .success()
         .stdout(predicate::str::contains("\"targets\": []"));
+}
+
+// ============================================================================
+// links.yaml tests
+// ============================================================================
+
+fn links_path_for_config(config_path: &std::path::Path) -> PathBuf {
+    config_path.parent().unwrap().join("links.yaml")
+}
+
+#[test]
+fn test_links_yaml_created_on_add() {
+    let temp = TempDir::new().unwrap();
+    let config_path = temp.path().join("config.yaml");
+    let source = temp.path().join("source");
+    let target = temp.path().join("target");
+
+    fs::create_dir(&source).unwrap();
+    fs::create_dir(&target).unwrap();
+    fs::write(source.join("test.txt"), "hello").unwrap();
+
+    let links_path = links_path_for_config(&config_path);
+
+    // links.yaml should not exist yet
+    assert!(!links_path.exists());
+
+    amu_with_config(&config_path)
+        .arg("add")
+        .arg(&source)
+        .arg(&target)
+        .assert()
+        .success();
+
+    // links.yaml should now exist
+    assert!(links_path.exists());
+
+    // Verify contents mention our file
+    let content = fs::read_to_string(&links_path).unwrap();
+    assert!(content.contains("test.txt"));
+}
+
+#[test]
+fn test_add_dry_run_no_links_yaml() {
+    let temp = TempDir::new().unwrap();
+    let config_path = temp.path().join("config.yaml");
+    let source = temp.path().join("source");
+    let target = temp.path().join("target");
+
+    fs::create_dir(&source).unwrap();
+    fs::create_dir(&target).unwrap();
+    fs::write(source.join("test.txt"), "hello").unwrap();
+
+    let links_path = links_path_for_config(&config_path);
+
+    amu_with_config(&config_path)
+        .arg("add")
+        .arg("--dry-run")
+        .arg(&source)
+        .arg(&target)
+        .assert()
+        .success();
+
+    // links.yaml should NOT be created in dry-run mode
+    assert!(!links_path.exists());
+}
+
+#[test]
+fn test_remove_deleted_source_cleans_dangling() {
+    let temp = TempDir::new().unwrap();
+    let config_path = temp.path().join("config.yaml");
+    let source = temp.path().join("source");
+    let target = temp.path().join("target");
+
+    fs::create_dir(&source).unwrap();
+    fs::create_dir(&target).unwrap();
+    fs::write(source.join("test.txt"), "hello").unwrap();
+
+    // Add source
+    amu_with_config(&config_path)
+        .arg("add")
+        .arg(&source)
+        .arg(&target)
+        .assert()
+        .success();
+
+    assert!(target.join("test.txt").is_symlink());
+
+    // Canonicalize source path before deleting (for the remove command)
+    let source_canonical = source.canonicalize().unwrap();
+
+    // Delete the source directory
+    fs::remove_dir_all(&source).unwrap();
+    assert!(!source.exists());
+
+    // The symlink is now dangling
+    assert!(target.join("test.txt").is_symlink());
+    assert!(!target.join("test.txt").exists()); // dangling
+
+    // Remove should clean up dangling links using links.yaml
+    amu_with_config(&config_path)
+        .arg("remove")
+        .arg(&source_canonical)
+        .arg(&target)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Cleaned up"));
+
+    // Dangling symlink should be gone
+    assert!(!target.join("test.txt").is_symlink());
+}
+
+#[test]
+fn test_clear_deleted_source_cleans_dangling() {
+    let temp = TempDir::new().unwrap();
+    let config_path = temp.path().join("config.yaml");
+    let source = temp.path().join("source");
+    let target = temp.path().join("target");
+
+    fs::create_dir(&source).unwrap();
+    fs::create_dir(&target).unwrap();
+    fs::write(source.join("test.txt"), "hello").unwrap();
+
+    // Add source
+    amu_with_config(&config_path)
+        .arg("add")
+        .arg(&source)
+        .arg(&target)
+        .assert()
+        .success();
+
+    assert!(target.join("test.txt").is_symlink());
+
+    // Delete the source directory
+    fs::remove_dir_all(&source).unwrap();
+
+    // The symlink is now dangling
+    assert!(target.join("test.txt").is_symlink());
+
+    // Clear should clean up dangling links
+    amu_with_config(&config_path)
+        .arg("clear")
+        .arg(&target)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Cleaned up"));
+
+    // Dangling symlink should be gone
+    assert!(!target.join("test.txt").is_symlink());
+}
+
+#[test]
+fn test_remove_deleted_source_nested_dirs() {
+    let temp = TempDir::new().unwrap();
+    let config_path = temp.path().join("config.yaml");
+    let source = temp.path().join("source");
+    let target = temp.path().join("target");
+
+    fs::create_dir(&source).unwrap();
+    fs::create_dir(&target).unwrap();
+    fs::create_dir(source.join("sub")).unwrap();
+    fs::create_dir(source.join("sub").join("deep")).unwrap();
+    fs::write(source.join("sub").join("deep").join("file.txt"), "hello").unwrap();
+
+    // Add source
+    amu_with_config(&config_path)
+        .arg("add")
+        .arg(&source)
+        .arg(&target)
+        .assert()
+        .success();
+
+    assert!(target.join("sub").join("deep").join("file.txt").is_symlink());
+
+    // Canonicalize source path before deleting
+    let source_canonical = source.canonicalize().unwrap();
+
+    // Delete source
+    fs::remove_dir_all(&source).unwrap();
+
+    // Remove should clean up dangling links AND empty directories
+    amu_with_config(&config_path)
+        .arg("remove")
+        .arg(&source_canonical)
+        .arg(&target)
+        .assert()
+        .success();
+
+    // Nested directories should also be cleaned up
+    assert!(!target.join("sub").exists());
+}
+
+#[test]
+fn test_remove_deleted_source_dry_run() {
+    let temp = TempDir::new().unwrap();
+    let config_path = temp.path().join("config.yaml");
+    let source = temp.path().join("source");
+    let target = temp.path().join("target");
+
+    fs::create_dir(&source).unwrap();
+    fs::create_dir(&target).unwrap();
+    fs::write(source.join("test.txt"), "hello").unwrap();
+
+    // Add source
+    amu_with_config(&config_path)
+        .arg("add")
+        .arg(&source)
+        .arg(&target)
+        .assert()
+        .success();
+
+    // Canonicalize source path before deleting
+    let source_canonical = source.canonicalize().unwrap();
+
+    // Delete source
+    fs::remove_dir_all(&source).unwrap();
+
+    // dry-run should NOT delete dangling links
+    amu_with_config(&config_path)
+        .arg("remove")
+        .arg("--dry-run")
+        .arg(&source_canonical)
+        .arg(&target)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("[dry-run]"));
+
+    // Dangling symlink should still exist
+    assert!(target.join("test.txt").is_symlink());
+}
+
+#[test]
+fn test_remove_deleted_source_preserves_other_links() {
+    let temp = TempDir::new().unwrap();
+    let config_path = temp.path().join("config.yaml");
+    let source1 = temp.path().join("source1");
+    let source2 = temp.path().join("source2");
+    let target = temp.path().join("target");
+
+    fs::create_dir(&source1).unwrap();
+    fs::create_dir(&source2).unwrap();
+    fs::create_dir(&target).unwrap();
+    fs::write(source1.join("file1.txt"), "from source1").unwrap();
+    fs::write(source2.join("file2.txt"), "from source2").unwrap();
+
+    // Add both sources
+    amu_with_config(&config_path)
+        .arg("add")
+        .arg(&source1)
+        .arg(&target)
+        .assert()
+        .success();
+
+    amu_with_config(&config_path)
+        .arg("add")
+        .arg(&source2)
+        .arg(&target)
+        .assert()
+        .success();
+
+    assert!(target.join("file1.txt").is_symlink());
+    assert!(target.join("file2.txt").is_symlink());
+
+    // Canonicalize before deleting
+    let source1_canonical = source1.canonicalize().unwrap();
+
+    // Delete only source1
+    fs::remove_dir_all(&source1).unwrap();
+
+    // Remove source1 should only clean up source1's links
+    amu_with_config(&config_path)
+        .arg("remove")
+        .arg(&source1_canonical)
+        .arg(&target)
+        .assert()
+        .success();
+
+    // source1's link should be gone
+    assert!(!target.join("file1.txt").is_symlink());
+    // source2's link should still exist
+    assert!(target.join("file2.txt").is_symlink());
+    assert!(target.join("file2.txt").exists()); // not dangling
 }

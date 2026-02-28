@@ -1,6 +1,7 @@
 mod cli;
 mod config;
 mod error;
+mod links;
 mod stow;
 
 use std::path::{Path, PathBuf};
@@ -10,6 +11,7 @@ use clap::Parser;
 use cli::{Cli, Commands};
 use config::{normalize_path, resolve_target, Config};
 use error::{DotlinkError, Result};
+use links::LinksRecord;
 
 fn main() {
     if let Err(e) = run() {
@@ -62,9 +64,13 @@ fn cmd_add(source: PathBuf, target: Option<PathBuf>, dry_run: bool) -> Result<()
     }
 
     let mut config = Config::load()?;
+    let mut links_record = LinksRecord::load()?;
     config.add_source(target.clone(), source.clone())?;
 
     stow::stow(&source, &target)?;
+    record_links_for_source(&mut links_record, &target, &source);
+
+    links_record.save()?;
     config.save()?;
 
     println!("Added: {} -> {}", source.display(), target.display());
@@ -95,16 +101,28 @@ fn cmd_remove(source: PathBuf, target: Option<PathBuf>, dry_run: bool) -> Result
                 }
             }
         } else {
-            println!("  Source not found, would only remove from config.");
+            let links_record = LinksRecord::load()?;
+            if let Some(recorded) = links_record.get_links(&target, &source) {
+                println!("  Source not found, would clean up {} recorded links.", recorded.len());
+            } else {
+                println!("  Source not found, no recorded links to clean up.");
+            }
         }
         return Ok(());
     }
 
     let mut config = Config::load()?;
+    let mut links_record = LinksRecord::load()?;
 
     if source.exists() {
         stow::unstow(&source, &target)?;
+    } else if let Some(recorded) = links_record.remove_source(&target, &source) {
+        let removed = links::cleanup_recorded_links(&target, &source, &recorded);
+        println!("Cleaned up {} dangling links.", removed);
     }
+
+    links_record.remove_source(&target, &source);
+    links_record.save()?;
 
     config.remove_source(&target, &source)?;
     config.save()?;
@@ -133,14 +151,20 @@ fn cmd_update(target: Option<PathBuf>, all: bool, dry_run: bool) -> Result<()> {
         return Ok(());
     }
 
+    let mut links_record = if dry_run {
+        None
+    } else {
+        Some(LinksRecord::load()?)
+    };
+
     let prefix = if dry_run { "[dry-run] " } else { "" };
-    for target in targets {
-        if let Some(sources) = config.get_sources(&target) {
-            println!("{}Updating {}:", prefix, abbreviate_path(&target));
+    for target in &targets {
+        if let Some(sources) = config.get_sources(target) {
+            println!("{}Updating {}:", prefix, abbreviate_path(target));
             for source in sources {
                 if source.exists() {
                     if dry_run {
-                        let output = stow::dry_run_restow(source, &target)?;
+                        let output = stow::dry_run_restow(source, target)?;
                         let links = stow::parse_dry_run_output(&output);
                         if links.is_empty() {
                             println!("  Would restow: {} (no changes)", abbreviate_path(source));
@@ -148,7 +172,10 @@ fn cmd_update(target: Option<PathBuf>, all: bool, dry_run: bool) -> Result<()> {
                             println!("  Would restow: {} ({} links)", abbreviate_path(source), links.len());
                         }
                     } else {
-                        stow::restow(source, &target)?;
+                        stow::restow(source, target)?;
+                        if let Some(ref mut lr) = links_record {
+                            record_links_for_source(lr, target, source);
+                        }
                         println!("  Restowed: {}", abbreviate_path(source));
                     }
                 } else {
@@ -156,6 +183,10 @@ fn cmd_update(target: Option<PathBuf>, all: bool, dry_run: bool) -> Result<()> {
                 }
             }
         }
+    }
+
+    if let Some(lr) = links_record {
+        lr.save()?;
     }
 
     Ok(())
@@ -192,6 +223,12 @@ fn cmd_sync(source: Option<PathBuf>, dry_run: bool) -> Result<()> {
     }
 
     // Update selected targets
+    let mut links_record = if dry_run {
+        None
+    } else {
+        Some(LinksRecord::load()?)
+    };
+
     let prefix = if dry_run { "[dry-run] " } else { "" };
     for target in selected {
         if dry_run {
@@ -200,8 +237,15 @@ fn cmd_sync(source: Option<PathBuf>, dry_run: bool) -> Result<()> {
             println!("{}Would restow: {} ({} links)", prefix, abbreviate_path(&target), links.len());
         } else {
             stow::restow(&source, &target)?;
+            if let Some(ref mut lr) = links_record {
+                record_links_for_source(lr, &target, &source);
+            }
             println!("✓ {}", abbreviate_path(&target));
         }
+    }
+
+    if let Some(lr) = links_record {
+        lr.save()?;
     }
 
     Ok(())
@@ -564,6 +608,8 @@ fn cmd_clear(target: Option<PathBuf>, all: bool, dry_run: bool) -> Result<()> {
         return Ok(());
     }
 
+    let mut links_record = LinksRecord::load()?;
+
     for target in &targets_to_clear {
         if let Some(sources) = config.targets.get(target) {
             for source in sources {
@@ -571,12 +617,23 @@ fn cmd_clear(target: Option<PathBuf>, all: bool, dry_run: bool) -> Result<()> {
                     if let Err(e) = stow::unstow(source, target) {
                         eprintln!("Warning: Failed to unstow {} -> {}: {}", source.display(), target.display(), e);
                     }
+                } else if !source.exists() {
+                    // Source deleted: use recorded links for cleanup
+                    if let Some(recorded) = links_record.get_links(target, source) {
+                        let recorded = recorded.clone();
+                        let removed = links::cleanup_recorded_links(target, source, &recorded);
+                        if removed > 0 {
+                            println!("Cleaned up {} dangling links for {}", removed, abbreviate_path(source));
+                        }
+                    }
                 }
             }
         }
+        links_record.remove_target(target);
         config.targets.remove(target);
     }
 
+    links_record.save()?;
     config.save()?;
 
     if all {
@@ -633,6 +690,7 @@ fn cmd_restore(target: Option<PathBuf>, all: bool, dry_run: bool) -> Result<()> 
         return Ok(());
     }
 
+    let mut links_record = LinksRecord::load()?;
     let mut success = 0;
     let mut failed = 0;
 
@@ -653,6 +711,7 @@ fn cmd_restore(target: Option<PathBuf>, all: bool, dry_run: bool) -> Result<()> 
                 if source.exists() {
                     match stow::stow(source, target) {
                         Ok(()) => {
+                            record_links_for_source(&mut links_record, target, source);
                             println!("  \u{2713} {}", abbreviate_path(source));
                             success += 1;
                         }
@@ -669,6 +728,8 @@ fn cmd_restore(target: Option<PathBuf>, all: bool, dry_run: bool) -> Result<()> 
             println!();
         }
     }
+
+    links_record.save()?;
 
     println!("Done: {} succeeded, {} failed", success, failed);
 
@@ -810,6 +871,11 @@ fn count_links_recursive(source_base: &Path, target: &Path, current_source: &Pat
             }
         }
     }
+}
+
+fn record_links_for_source(links_record: &mut LinksRecord, target: &Path, source: &Path) {
+    let scanned = links::scan_links_for_source(target, source);
+    links_record.record_links(target, source, scanned);
 }
 
 fn abbreviate_path(path: &Path) -> String {

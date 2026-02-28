@@ -26,6 +26,12 @@ pub enum DotlinkError {
     #[error("Failed to save config file: {0}")]
     ConfigSaveError(String),
 
+    #[error("Failed to parse links file: {0}")]
+    LinksParseError(String),
+
+    #[error("Failed to save links file: {0}")]
+    LinksSaveError(String),
+
     #[error("stow command failed: {0}")]
     StowError(String),
 
